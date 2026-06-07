@@ -41,33 +41,33 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Scanner Madre Realtime</title>
+    <title>Scanner Madre Intelligente</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #121212; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 400px; width: 100%; text-align: center; }
         .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 15px; overflow: hidden; border: 3px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .mirino { position: absolute; top: 30%; left: 10%; width: 80%; height: 40%; border: 3px solid #00ffcc; border-radius: 8px; pointer-events: none; box-shadow: 0 0 10px rgba(0,255,204,0.4); }
+        .mirino { position: absolute; top: 25%; left: 5%; width: 90%; height: 50%; border: 3px solid #00ffcc; border-radius: 8px; pointer-events: none; box-shadow: 0 0 10px rgba(0,255,204,0.4); }
         .status-box { width: 100%; padding: 20px 0; border-radius: 15px; margin-top: 20px; font-size: 1.8rem; font-weight: bold; background-color: #1e1e1e; border: 2px solid #333; transition: all 0.2s ease; }
         .maggiorenne { background-color: #2eb85c !important; color: white; border-color: #1f7a3e; box-shadow: 0 0 25px #2eb85c; }
         .minorenne { background-color: #e55353 !important; color: white; border-color: #a33939; box-shadow: 0 0 25px #e55353; }
-        #sub-text { color: #aaa; font-size: 0.9rem; margin-top: 10px; }
+        #sub-text { color: #aaa; font-size: 0.9rem; margin-top: 10px; min-height: 40px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0;">Madre Live Scanner</h2>
-    <p style="color: #888; margin: 0 0 15px 0; font-size: 0.9rem;">Inquadra la DATA DI NASCITA nel rettangolo verde</p>
+    <h2 style="margin: 0 0 5px 0;">Madre Intelletto v4</h2>
+    <p style="color: #888; margin: 0 0 15px 0; font-size: 0.9rem;">Inquadra la sezione "Data di Nascita"</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
         <div class="mirino"></div>
     </div>
 
-    <div id="status-block" class="status-box">AVVIO MOTORE...</div>
-    <p id="sub-text">Inizializzazione fotocamera...</p>
+    <div id="status-block" class="status-box">CARICAMENTO...</div>
+    <div id="sub-text">Inizializzazione motore di lettura...</div>
 </div>
 
 <canvas id="canvas" style="display:none;" width="640" height="480"></canvas>
@@ -83,17 +83,18 @@ HTML_TEMPLATE = """
     let bloccato = false;
     let pronto = false;
 
-    // Inizializza il motore OCR sul telefono SUBITO all'apertura della pagina
     async function inizializzaOCR() {
-        statusBlock.innerText = "CARICAMENTO CORPO...";
-        worker = await Tesseract.createWorker('ita');
-        // Diciamo all'OCR di considerare SOLO numeri e barre per essere istantaneo
+        statusBlock.innerText = "SISTEMA AVVIATO";
+        // Configurazione bilingue leggera per intercettare sia l'italiano che le etichette inglesi dei documenti
+        worker = await Tesseract.createWorker('ita+eng');
+        
+        // Mettiamo in whitelist lettere e numeri chiave per non rallentare l'elaborazione
         await worker.setParameters({
-            tessedit_char_whitelist: '0123456789/.- ',
+            tessedit_char_whitelist: '0123456789/.-ABCDEFGHIJKLMOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz() ',
         });
         pronto = true;
-        statusBlock.innerText = "PRONTO: INQUADRA";
-        subText.innerText = "Avvicina la data di nascita";
+        statusBlock.innerText = "PRONTO AL VARCO";
+        subText.innerText = "Inquadra la data (tieni fermo a 15-20cm)";
         loopScansione();
     }
 
@@ -131,65 +132,69 @@ HTML_TEMPLATE = """
 
     async function loopScansione() {
         if (!pronto || bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) {
-            setTimeout(loopScansione, 300);
+            setTimeout(loopScansione, 250);
             return;
         }
 
-        // Ritaglia solo la porzione centrale del mirino per velocizzare l'OCR a meno di 100ms
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
         try {
             const { data: { text } } = await worker.recognize(canvas);
-            
-            // Cerca combinazioni tipo GG/MM/AAAA o GG-MM-AAAA
-            let match = text.match(/(\\d{2})[\\/\\-\\.](\\d{2})[\\/\\-\\.](\\d{4})/);
-            
-            if (match) {
-                let giorno = parseInt(match[1]);
-                let mese = parseInt(match[2]);
-                let anno = parseInt(match[3]);
-                
-                if (anno > 1930 && anno <= new Date().getFullYear() && mese >= 1 && mese <= 12 && giorno >= 1 && giorno <= 31) {
-                    bloccato = true;
-                    let dataRilevata = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
-                    
-                    // Invia al server in background per salvare i dati
-                    fetch('/salva_scansione', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ data: dataRilevata })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.esito === 'MAGGIORENNE') {
-                            statusBlock.className = 'status-box maggiorenne';
-                            statusBlock.innerText = '✔️ MAGGIORENNE';
-                            subText.innerHTML = `Età: <b>${data.eta} anni</b> (${dataRilevata})`;
-                            playSuono('ok');
-                        } else {
-                            statusBlock.className = 'status-box minorenne';
-                            statusBlock.innerText = '❌ MINORENNE';
-                            subText.innerHTML = `Età: <b>${data.eta} anni</b> (${dataRilevata})`;
-                            playSuono('no');
-                        }
+            let testoPulito = text.toUpperCase();
 
-                        // Sblocco immediato dopo 2 secondi per il cliente successivo
-                        setTimeout(() => {
-                            statusBlock.className = 'status-box';
-                            statusBlock.innerText = 'PRONTO: INQUADRA';
-                            subText.innerText = 'Avvicina la data di nascita';
-                            bloccato = false;
-                            loopScansione();
-                        }, 2200);
-                    });
-                    return;
+            // --- TUA INTUIZIONE: ANCORAGGIO INTELLIGENTE ---
+            // Controlliamo se nel testo ci sono le parole magiche del documento
+            if (testoPulito.includes("NASCITA") || testoPulito.includes("BIRTH") || testoPulito.includes("DATA") || testoPulito.includes("PLACE")) {
+                
+                // Estrae la stringa di numeri GG/MM/AAAA vicina alle parole chiave
+                let match = testoPulito.match(/(\\d{2})[\\/\\-\\.](\\d{2})[\\/\\-\\.](\\d{4})/);
+                
+                if (match) {
+                    let giorno = parseInt(match[1]);
+                    let mese = parseInt(match[2]);
+                    let anno = parseInt(match[3]);
+                    
+                    if (anno > 1930 && anno <= new Date().getFullYear() && mese >= 1 && mese <= 12 && giorno >= 1 && giorno <= 31) {
+                        bloccato = true;
+                        let dataRilevata = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
+                        
+                        fetch('/salva_scansione', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ data: dataRilevata })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.esito === 'MAGGIORENNE') {
+                                statusBlock.className = 'status-box maggiorenne';
+                                statusBlock.innerText = '✔️ MAGGIORENNE';
+                                subText.innerHTML = `Nato il: <b>${dataRilevata}</b> (${data.eta} anni)`;
+                                playSuono('ok');
+                            } else {
+                                statusBlock.className = 'status-box minorenne';
+                                statusBlock.innerText = '❌ MINORENNE';
+                                subText.innerHTML = `Nato il: <b>${dataRilevata}</b> (${data.eta} anni)`;
+                                playSuono('no');
+                            }
+
+                            // Reset rapido di 2 secondi, perfetto per la fila
+                            setTimeout(() => {
+                                statusBlock.className = 'status-box';
+                                statusBlock.innerText = 'PRONTO AL VARCO';
+                                subText.innerText = 'Inquadra la data (tieni fermo a 15-20cm)';
+                                bloccato = false;
+                                loopScansione();
+                            }, 2000);
+                        });
+                        return;
+                    }
                 }
             }
         } catch (e) {
             console.error(e);
         }
 
-        // Continua a ciclare velocemente finché non trova una data valida
+        // Continua a scansionare a raffica ogni 150ms finché non aggancia il testo corretto
         setTimeout(loopScansione, 150);
     }
 
