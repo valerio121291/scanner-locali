@@ -33,7 +33,7 @@ def salva_in_memoria(esito, eta, data_nascita):
             json.dump(data, f, indent=4)
             f.truncate()
     except Exception as e:
-        print(f"Errore salvataggio memoria: {e}")
+        print(f"Errore scrittura memoria: {e}")
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -41,33 +41,33 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Madre Scanner Universale</title>
+    <title>Madre Laser Scanner</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background-color: #0b0b0b; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background-color: #050505; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 400px; width: 100%; text-align: center; }
-        .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 3px solid #222; background: #000; }
+        .video-container { position: relative; width: 100%; max-width: 340px; height: 200px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 3px solid #1a1a1a; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .mirino { position: absolute; top: 20%; left: 5%; width: 90%; height: 60%; border: 3px solid #00ffcc; border-radius: 12px; pointer-events: none; box-shadow: 0 0 15px rgba(0,255,204,0.3); }
-        .status-box { width: 100%; padding: 22px 0; border-radius: 16px; margin-top: 20px; font-size: 1.9rem; font-weight: bold; background-color: #161616; border: 2px solid #252525; transition: all 0.15s ease; }
-        .maggiorenne { background-color: #2eb85c !important; color: white; border-color: #1f7a3e; box-shadow: 0 0 30px rgba(46,184,92,0.6); }
-        .minorenne { background-color: #e55353 !important; color: white; border-color: #a33939; box-shadow: 0 0 30px rgba(229,83,83,0.6); }
-        #sub-text { color: #aaa; font-size: 0.95rem; margin-top: 12px; min-height: 45px; line-height: 1.4; }
+        .mirino { position: absolute; top: 30%; left: 5%; width: 90%; height: 40%; border: 3px solid #00ffcc; border-radius: 10px; pointer-events: none; box-shadow: 0 0 20px rgba(0,255,204,0.4); }
+        .status-box { width: 100%; padding: 20px 0; border-radius: 16px; margin-top: 20px; font-size: 2rem; font-weight: bold; background-color: #121212; border: 2px solid #222; transition: all 0.1s ease; letter-spacing: 0.5px; }
+        .maggiorenne { background-color: #2eb85c !important; color: white; border-color: #1f7a3e; box-shadow: 0 0 30px rgba(46,184,92,0.7); }
+        .minorenne { background-color: #e55353 !important; color: white; border-color: #a33939; box-shadow: 0 0 30px rgba(229,83,83,0.7); }
+        #sub-text { color: #888; font-size: 0.95rem; margin-top: 12px; min-height: 40px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0; font-weight: 800; letter-spacing: -0.5px;">MADRE SCANNER v6</h2>
-    <p style="color: #666; margin: 0 0 20px 0; font-size: 0.9rem;">Rilascio Internazionale - CIE / Estremi / Patenti</p>
+    <h2 style="margin: 0 0 5px 0; font-weight: 800; color: #fff;">MADRE LASER v7</h2>
+    <p style="color: #555; margin: 0 0 15px 0; font-size: 0.85rem;">Punta il riquadro verde direttamente sopra i numeri della data</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
         <div class="mirino"></div>
     </div>
 
-    <div id="status-block" class="status-box">CARICAMENTO...</div>
-    <div id="sub-text">Inizializzazione filtri ottici...</div>
+    <div id="status-block" class="status-box">ACCENSIONE...</div>
+    <div id="sub-text">Calibrazione sensore ottico...</div>
 </div>
 
 <canvas id="canvas" style="display:none;" width="640" height="480"></canvas>
@@ -84,14 +84,15 @@ HTML_TEMPLATE = """
     let pronto = false;
 
     async function inizializzaOCR() {
-        statusBlock.innerText = "AVVIO MOTORE...";
-        worker = await Tesseract.createWorker('ita+eng');
+        worker = await Tesseract.createWorker('eng'); // Usiamo solo inglese: è 4 volte più veloce e legge perfettamente i numeri
+        
+        // BILANCIAMENTO VELOCITÀ: Leggiamo solo cifre, barre, trattini e punti. Niente lettere!
         await worker.setParameters({
-            tessedit_char_whitelist: '0123456789/.-ABCDEFGHIJKLMOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz() ',
+            tessedit_char_whitelist: '0123456789/.- ',
         });
         pronto = true;
         statusBlock.innerText = "PRONTO AL VARCO";
-        subText.innerText = "Inquadra la zona centrale del documento";
+        subText.innerText = "Centra la data nel mirino";
         loopScansione();
     }
 
@@ -104,12 +105,12 @@ HTML_TEMPLATE = """
                 osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
                 gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
                 osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.12);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
             } else {
                 osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, audioCtx.currentTime);
                 gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
                 osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.22);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
             }
         } catch(e) {}
     }
@@ -127,16 +128,12 @@ HTML_TEMPLATE = """
         }
     }
 
-    // Filtro adattivo per distruggere i riflessi violacei/blu delle luci dei locali
-    function applicaFiltroContrasto(imageData) {
+    // Filtro istantaneo in scala di grigi per dare massima nitidezza ai numeri neri
+    function applicaFiltroNitidezza(imageData) {
         let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
-            let r = d[i], g = d[i+1], b = d[i+2];
-            // Diamo meno peso al canale blu (b) per abbattere i riflessi spuri della plastica
-            let v = (0.299 * r + 0.587 * g + 0.114 * b);
-            
-            // Binarizzazione netta per caratteri ad alto stacco
-            v = (v > 120) ? 255 : 0;
+            let v = (0.2126 * d[i] + 0.7152 * d[i+1] + 0.0722 * d[i+2]);
+            v = (v > 125) ? 255 : 0;
             d[i] = d[i+1] = d[i+2] = v;
         }
         return imageData;
@@ -144,83 +141,81 @@ HTML_TEMPLATE = """
 
     async function loopScansione() {
         if (!pronto || bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) {
-            setTimeout(loopScansione, 100);
+            setTimeout(loopScansione, 50);
             return;
         }
 
+        // Cattura l'area
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        ctx.putImageData(applicaFiltroContrasto(imgData), 0, 0);
+        ctx.putImageData(applicaFiltroNitidezza(imgData), 0, 0);
         
         try {
             const { data: { text } } = await worker.recognize(canvas);
-            let testoPulito = text.toUpperCase().replace(/\s+/g, ' ');
-
-            // Intercettiamo qualsiasi blocco numerico data a 2 o 4 cifre di anno
-            let regexData = /(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/;
-            let match = testoPulito.match(regexData);
             
-            // ANCORAGGIO INTERNAZIONALE ESTESO: Abbattiamo i vincoli geografici
-            let haAncoraUniversale = testoPulito.includes("NASC") || 
-                                     testoPulito.includes("BIRT") || 
-                                     testoPulito.includes("DATE") || 
-                                     testoPulito.includes("PLAC") ||
-                                     testoPulito.includes("ANE") || // Copre l'errore di stampa "PLACE ANE DATE"
-                                     testoPulito.includes("PATA") ||
-                                     /3\.\s\d/.test(testoPulito);
-
-            if (match && haAncoraUniversale) {
-                let giorno = parseInt(match[1]);
-                let mese = parseInt(match[2]);
-                let annoGrezzo = match[3];
-                let anno = parseInt(annoGrezzo);
-                
-                if (annoGrezzo.length === 2) {
-                    let annoCorrenteCorto = new Date().getFullYear() % 100;
-                    anno = (anno <= annoCorrenteCorto) ? (2000 + anno) : (1900 + anno);
-                }
-                
-                // Evitiamo di confonderci con la data di emissione (es. 2026) o scadenza (es. 2036)
-                // Isoliamo l'anno di nascita reale (coerente con chi va in un locale)
-                if (anno >= 1940 && anno <= (new Date().getFullYear() - 10) && mese >= 1 && mese <= 12 && giorno >= 1 && giorno <= 31) {
-                    bloccato = true;
-                    let dataRilevata = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
+            // Trova qualsiasi stringa che somigli a una data (es: 12.12.1991, 06.01.1989, 12/12/91)
+            let matches = text.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
+            
+            if (matches) {
+                for (let matchStr of matches) {
+                    let parti = matchStr.split(/[\/\-\.]/);
+                    let giorno = parseInt(parti[0]);
+                    let mese = parseInt(parti[1]);
+                    let annoStr = parti[2];
+                    let anno = parseInt(annoStr);
                     
-                    fetch('/salva_scansione', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ data: dataRilevata })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.esito === 'MAGGIORENNE') {
-                            statusBlock.className = 'status-box maggiorenne';
-                            statusBlock.innerText = '✔️ MAGGIORENNE';
-                            subText.innerHTML = `Data: <b>${dataRilevata}</b><br>Età: <b>${data.eta} anni</b>`;
-                            playSuono('ok');
-                        } else {
-                            statusBlock.className = 'status-box minorenne';
-                            statusBlock.innerText = '❌ MINORENNE';
-                            subText.innerHTML = `Data: <b>${dataRilevata}</b><br>Età: <b>${data.eta} anni</b>`;
-                            playSuono('no');
+                    if (annoStr.length === 2) {
+                        let annoCorrenteCorto = new Date().getFullYear() % 100;
+                        anno = (anno <= annoCorrenteCorto) ? (2000 + anno) : (1900 + anno);
+                    }
+                    
+                    if (giorno >= 1 && giorno <= 31 && mese >= 1 && mese <= 12) {
+                        let oggi = new Date();
+                        let eta = oggi.getFullYear() - anno;
+                        if (oggi.getMonth() + 1 < mese || (oggi.getMonth() + 1 === mese && oggi.getDate() < giorno)) {
+                            eta--;
                         }
+                        
+                        // FILTRO LOGICO: Isola la data di nascita scartando scadenze (2036) ed emissioni (2026)
+                        if (eta >= 14 && eta <= 85) {
+                            bloccato = true;
+                            let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
+                            
+                            fetch('/salva_scansione', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ data: dataValida })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.esito === 'MAGGIORENNE') {
+                                    statusBlock.className = 'status-box maggiorenne';
+                                    statusBlock.innerText = '✔️ MAGGIORENNE';
+                                } else {
+                                    statusBlock.className = 'status-box minorenne';
+                                    statusBlock.innerText = '❌ MINORENNE';
+                                }
+                                subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${data.eta} anni</b>`;
+                                playSuono(data.esito === 'MAGGIORENNE' ? 'ok' : 'no');
 
-                        setTimeout(() => {
-                            statusBlock.className = 'status-box';
-                            statusBlock.innerText = 'PRONTO AL VARCO';
-                            subText.innerText = 'Inquadra il documento fermo a 15-20 cm';
-                            bloccato = false;
-                            loopScansione();
-                        }, 2000);
-                    }).catch(() => { bloccato = false; loopScansione(); });
-                    return;
+                                setTimeout(() => {
+                                    statusBlock.className = 'status-box';
+                                    statusBlock.innerText = 'PRONTO AL VARCO';
+                                    subText.innerText = 'Centra la data nel mirino';
+                                    bloccato = false;
+                                    loopScansione();
+                                }, 1500); // 1.5 secondi di reset per andare a nastro
+                            }).catch(() => { bloccato = false; loopScansione(); });
+                            return;
+                        }
+                    }
                 }
             }
         } catch (e) {
             console.error(e);
         }
 
-        setTimeout(loopScansione, 100);
+        setTimeout(loopScansione, 40); // Frequenza di campionamento quasi istantanea
     }
 
     startCamera();
@@ -230,10 +225,6 @@ HTML_TEMPLATE = """
 </body>
 </html>
 """
-
-@app.route('/')
-def home():
-    return render_template_string(HTML_TEMPLATE)
 
 @app.route('/salva_scansione', methods=['POST'])
 def salva_scansione():
