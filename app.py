@@ -41,31 +41,31 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Madre Laser Precision v11</title>
+    <title>Madre Flash Scanner v12</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background-color: #030303; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background-color: #020202; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 400px; width: 100%; text-align: center; }
         
-        .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 24px; overflow: hidden; border: 3px solid #222; background: #000; box-shadow: 0 12px 40px rgba(0,0,0,0.8); }
+        .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 24px; overflow: hidden; border: 3px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* Zona di mira ristretta per massima precisione di focus numerico */
-        .mirino { position: absolute; top: 38%; left: 8%; width: 84%; height: 24%; border: 3px solid #00ffcc; border-radius: 10px; pointer-events: none; box-shadow: 0 0 25px rgba(0,255,204,0.5); box-sizing: border-box; z-index: 10; }
-        .oscuratore-top { position: absolute; top: 0; left: 0; width: 100%; height: 38%; background: rgba(0,0,0,0.7); pointer-events: none; z-index: 5; }
-        .oscuratore-bottom { position: absolute; top: 62%; left: 0; width: 100%; height: 38%; background: rgba(0,0,0,0.7); pointer-events: none; z-index: 5; }
+        /* Box laser mirato strettissimo per agganciare al volo */
+        .mirino { position: absolute; top: 40%; left: 10%; width: 80%; height: 20%; border: 3px solid #00ffcc; border-radius: 8px; pointer-events: none; box-shadow: 0 0 30px rgba(0,255,204,0.6); box-sizing: border-box; z-index: 10; }
+        .oscuratore-top { position: absolute; top: 0; left: 0; width: 100%; height: 40%; background: rgba(0,0,0,0.75); pointer-events: none; z-index: 5; }
+        .oscuratore-bottom { position: absolute; top: 60%; left: 0; width: 100%; height: 40%; background: rgba(0,0,0,0.75); pointer-events: none; z-index: 5; }
         
-        .status-box { width: 100%; padding: 22px 0; border-radius: 18px; margin-top: 25px; font-size: 2.1rem; font-weight: bold; background-color: #111; border: 2px solid #222; transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275); letter-spacing: 1px; }
-        .maggiorenne { background-color: #10b981 !important; color: white; border-color: #059669; box-shadow: 0 0 35px rgba(16,185,129,0.8); }
-        .minorenne { background-color: #ef4444 !important; color: white; border-color: #dc2626; box-shadow: 0 0 35px rgba(239,68,68,0.8); }
-        #sub-text { color: #94a3b8; font-size: 1rem; margin-top: 15px; min-height: 45px; line-height: 1.4; font-weight: 500; }
+        .status-box { width: 100%; padding: 22px 0; border-radius: 18px; margin-top: 25px; font-size: 2.2rem; font-weight: bold; background-color: #0f0f14; border: 2px solid #1e1e24; transition: all 0.05s ease; letter-spacing: 1px; }
+        .maggiorenne { background-color: #10b981 !important; border-color: #059669; box-shadow: 0 0 40px rgba(16,185,129,0.9); }
+        .minorenne { background-color: #ef4444 !important; border-color: #dc2626; box-shadow: 0 0 40px rgba(239,68,68,0.9); }
+        #sub-text { color: #a1a1aa; font-size: 1.05rem; margin-top: 15px; min-height: 45px; font-weight: 500; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0; font-weight: 800; color: #fff; letter-spacing: -0.5px;">MADRE PRECISION v11</h2>
-    <p style="color: #475569; margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 600;">Isolamento HD e Filtro Ottico Ottimizzato</p>
+    <h2 style="margin: 0 0 5px 0; font-weight: 900; color: #fff; letter-spacing: -0.5px;">MADRE FLASH v12</h2>
+    <p style="color: #52525b; margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">Aggancio Istantaneo HD</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
@@ -74,41 +74,40 @@ HTML_TEMPLATE = """
         <div class="oscuratore-bottom"></div>
     </div>
 
-    <div id="status-block" class="status-box">CALIBRAZIONE...</div>
-    <div id="sub-text">Allineamento sensori di precisione...</div>
+    <div id="status-block" class="status-box">AVVIO...</div>
+    <div id="sub-text">Caricamento scanner istantaneo...</div>
 </div>
 
-<canvas id="processingCanvas" style="display:none;" width="600" height="160"></canvas>
+<canvas id="processingCanvas" style="display:none;" width="550" height="130"></canvas>
 
 <script>
     const video = document.getElementById('video');
     const processingCanvas = document.getElementById('processingCanvas');
     const statusBlock = document.getElementById('status-block');
     const subText = document.getElementById('sub-text');
-    const pCtx = processingCanvas.getContext('2d');
+    const pCtx = processingCanvas.getContext('2d', { alpha: false }); // Disabilitiamo l'alpha per velocizzare il rendering della GPU
     
     let worker = null;
     let bloccato = false;
     let pronto = false;
 
     async function inizializzaOCR() {
-        statusBlock.innerText = "AVVIO MOTORE...";
         worker = await Tesseract.createWorker('eng');
-        
         await worker.setParameters({
             tessedit_char_whitelist: '0123456789/.- ',
+            tessedit_pageseg_mode: '7', // Forza Tesseract a trattare il box come una singola riga di testo (velocità moltiplicata x3)
         });
         
         pronto = true;
-        statusBlock.innerText = "PRONTO AL VARCO";
-        subText.innerText = "Inquadra stabilmente la riga della data nel box";
+        statusBlock.innerText = "PRONTO";
+        subText.innerText = "Piazza la data di nascita nel rettangolo verde";
         loopScansione();
     }
 
     async function startCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: false
             });
             video.srcObject = stream;
@@ -118,110 +117,100 @@ HTML_TEMPLATE = """
         }
     }
 
-    // Filtro adattivo ad alto stacco per distruggere i riflessi lucidi e le patine cromatiche delle tessere plastiche
-    function applicaFiltroPrecisione(imageData) {
+    // Convertitore di contrasto istantaneo ad alto frame-rate
+    function applicaFiltroFlash(imageData) {
         let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
-            // Diamo maggiore enfasi al canale rosso e verde per abbattere i riflessi olografici blu/viola delle discoteche
-            let v = (0.35 * d[i] + 0.55 * d[i+1] + 0.10 * d[i+2]);
-            // Soglia netta antiriflesso
-            v = (v > 115) ? 255 : 0;
-            d[i] = d[i+1] = d[i+2] = v;
+            let gray = (d[i] + d[i+1] + d[i+2]) / 3;
+            // Soglia spinta per separare nettamente l'inchiostro dalla plastica riflettente
+            let b = (gray > 115) ? 255 : 0;
+            d[i] = d[i+1] = d[i+2] = b;
         }
         return imageData;
     }
 
     async function loopScansione() {
         if (!pronto || bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) {
-            setTimeout(loopScansione, 50);
+            setTimeout(loopScansione, 30);
             return;
         }
 
-        // Recuperiamo le dimensioni reali del flusso video (HD)
         let videoW = video.videoWidth;
         let videoH = video.videoHeight;
         
-        // Calcoliamo geometricamente la porzione del mirino centrale sul flusso HD reale
-        let cropX = videoW * 0.08;
-        let cropY = videoH * 0.38;
-        let cropW = videoW * 0.84;
-        let cropH = videoH * 0.24;
+        // Calcolo millimetrico dell'area utile (Box centrale 80% larghezza, 20% altezza)
+        let cropX = videoW * 0.10;
+        let cropY = videoH * 0.40;
+        let cropW = videoW * 0.80;
+        let cropH = videoH * 0.20;
 
-        // Disegniamo sul canvas aumentando la densità dei pixel per rendere i caratteri ultra-definiti
         pCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, processingCanvas.width, processingCanvas.height);
         
         let imgData = pCtx.getImageData(0, 0, processingCanvas.width, processingCanvas.height);
-        pCtx.putImageData(applicaFiltroPrecisione(imgData), 0, 0);
+        pCtx.putImageData(applicaFiltroFlash(imgData), 0, 0);
         
         try {
             const { data: { text } } = await worker.recognize(processingCanvas);
             
-            // Validazione formati data rigorosa (evita falsi positivi con numeri seriali)
-            let matches = text.replace(/\s+/g, '').match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
+            // Estrazione numerica pulita immediata
+            let pulito = text.replace(/[^0-9\/\-\.]/g, '');
+            let matches = pulito.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/);
             
             if (matches) {
-                for (let matchStr of matches) {
-                    let separators = matchStr.match(/[\/\-\.]/g);
-                    // Controllo coerenza separatori (evita letture sporche come 12/12.19)
-                    if (separators && separators[0] !== separators[1]) continue;
-
-                    let parti = matchStr.split(/[\/\-\.]/);
-                    let giorno = parseInt(parti[0]);
-                    let mese = parseInt(parti[1]);
-                    let annoStr = parti[2];
-                    let anno = parseInt(annoStr);
-                    
-                    if (annoStr.length === 2) {
-                        let annoCorrenteCorto = new Date().getFullYear() % 100;
-                        anno = (anno <= annoCorrenteCorto) ? (2000 + anno) : (1900 + anno);
+                let giorno = parseInt(matches[1]);
+                let mese = parseInt(matches[2]);
+                let annoStr = matches[3];
+                let anno = parseInt(annoStr);
+                
+                if (annoStr.length === 2) {
+                    anno = (anno <= (new Date().getFullYear() % 100)) ? (2000 + anno) : (1900 + anno);
+                }
+                
+                if (giorno >= 1 && giorno <= 31 && mese >= 1 && mese <= 12) {
+                    let oggi = new Date();
+                    let eta = oggi.getFullYear() - anno;
+                    if (oggi.getMonth() + 1 < mese || (oggi.getMonth() + 1 === mese && oggi.getDate() < giorno)) {
+                        eta--;
                     }
                     
-                    if (giorno >= 1 && giorno <= 31 && mese >= 1 && mese <= 12) {
-                        let oggi = new Date();
-                        let eta = oggi.getFullYear() - anno;
-                        if (oggi.getMonth() + 1 < mese || (oggi.getMonth() + 1 === mese && oggi.getDate() < giorno)) {
-                            eta--;
-                        }
+                    // Discriminazione immediata di scadenze/emissioni
+                    if (eta >= 16 && eta <= 75) {
+                        bloccato = true;
+                        let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
                         
-                        // Finestra d'età logica per escludere emissioni e scadenze dei documenti
-                        if (eta >= 15 && eta <= 75) {
-                            bloccato = true;
-                            let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
+                        fetch('/salva_scansione', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ data: dataValida })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.esito === 'MAGGIORENNE') {
+                                statusBlock.className = 'status-box maggiorenne';
+                                statusBlock.innerText = '✔️ PASSA';
+                            } else {
+                                statusBlock.className = 'status-box minorenne';
+                                statusBlock.innerText = '❌ MINORENNE';
+                            }
+                            subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${data.eta} anni</b>`;
                             
-                            fetch('/salva_scansione', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ data: dataValida })
-                            })
-                            .then(res => res.json())
-                            .then(data => {
-                                if (data.esito === 'MAGGIORENNE') {
-                                    statusBlock.className = 'status-box maggiorenne';
-                                    statusBlock.innerText = '✔️ PASSA';
-                                } else {
-                                    statusBlock.className = 'status-box minorenne';
-                                    statusBlock.innerText = '❌ MINORENNE';
-                                }
-                                subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${data.eta} anni</b>`;
-                                
-                                try {
-                                    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                                    let osc = audioCtx.createOscillator();
-                                    osc.frequency.setValueAtTime(data.esito === 'MAGGIORENNE' ? 880 : 220, audioCtx.currentTime);
-                                    osc.connect(audioCtx.destination);
-                                    osc.start(); osc.stop(audioCtx.currentTime + 0.12);
-                                } catch(e) {}
+                            try {
+                                let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                                let osc = audioCtx.createOscillator();
+                                osc.frequency.setValueAtTime(data.esito === 'MAGGIORENNE' ? 880 : 220, audioCtx.currentTime);
+                                osc.connect(audioCtx.destination);
+                                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+                            } catch(e) {}
 
-                                setTimeout(() => {
-                                    statusBlock.className = 'status-box';
-                                    statusBlock.innerText = 'PRONTO AL VARCO';
-                                    subText.innerText = 'Inquadra stabilmente la riga della data nel box';
-                                    bloccato = false;
-                                    loopScansione();
-                                }, 1500);
-                            }).catch(() => { bloccato = false; loopScansione(); });
-                            return;
-                        }
+                            setTimeout(() => {
+                                statusBlock.className = 'status-box';
+                                statusBlock.innerText = 'PRONTO';
+                                subText.innerText = "Piazza la data di nascita nel rettangolo verde";
+                                bloccato = false;
+                                loopScansione();
+                            }, 1300); // Reset rapido a 1.3 secondi per smaltire la fila fuori
+                        }).catch(() => { bloccato = false; loopScansione(); });
+                        return;
                     }
                 }
             }
@@ -229,7 +218,7 @@ HTML_TEMPLATE = """
             console.error(e);
         }
 
-        setTimeout(loopScansione, 45);
+        setTimeout(loopScansione, 25); // Frequenza di campionamento schiacciata al minimo ritardo fisico
     }
 
     startCamera();
