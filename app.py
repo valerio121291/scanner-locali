@@ -41,7 +41,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Madre Flash Scanner v12</title>
+    <title>Madre Turbo Lens v13</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #020202; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
@@ -50,7 +50,7 @@ HTML_TEMPLATE = """
         .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 24px; overflow: hidden; border: 3px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* Box laser mirato strettissimo per agganciare al volo */
+        /* Box laser mirato orizzontale per cattura immediata */
         .mirino { position: absolute; top: 40%; left: 10%; width: 80%; height: 20%; border: 3px solid #00ffcc; border-radius: 8px; pointer-events: none; box-shadow: 0 0 30px rgba(0,255,204,0.6); box-sizing: border-box; z-index: 10; }
         .oscuratore-top { position: absolute; top: 0; left: 0; width: 100%; height: 40%; background: rgba(0,0,0,0.75); pointer-events: none; z-index: 5; }
         .oscuratore-bottom { position: absolute; top: 60%; left: 0; width: 100%; height: 40%; background: rgba(0,0,0,0.75); pointer-events: none; z-index: 5; }
@@ -64,8 +64,8 @@ HTML_TEMPLATE = """
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0; font-weight: 900; color: #fff; letter-spacing: -0.5px;">MADRE FLASH v12</h2>
-    <p style="color: #52525b; margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">Aggancio Istantaneo HD</p>
+    <h2 style="margin: 0 0 5px 0; font-weight: 900; color: #fff; letter-spacing: -0.5px;">MADRE TURBO v13</h2>
+    <p style="color: #00ffcc; margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Controllo Hardware Lente Attivo</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
@@ -75,7 +75,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div id="status-block" class="status-box">AVVIO...</div>
-    <div id="sub-text">Caricamento scanner istantaneo...</div>
+    <div id="sub-text">Calibrazione ottica avanzata...</div>
 </div>
 
 <canvas id="processingCanvas" style="display:none;" width="550" height="130"></canvas>
@@ -85,7 +85,7 @@ HTML_TEMPLATE = """
     const processingCanvas = document.getElementById('processingCanvas');
     const statusBlock = document.getElementById('status-block');
     const subText = document.getElementById('sub-text');
-    const pCtx = processingCanvas.getContext('2d', { alpha: false }); // Disabilitiamo l'alpha per velocizzare il rendering della GPU
+    const pCtx = processingCanvas.getContext('2d', { alpha: false });
     
     let worker = null;
     let bloccato = false;
@@ -95,34 +95,67 @@ HTML_TEMPLATE = """
         worker = await Tesseract.createWorker('eng');
         await worker.setParameters({
             tessedit_char_whitelist: '0123456789/.- ',
-            tessedit_pageseg_mode: '7', // Forza Tesseract a trattare il box come una singola riga di testo (velocità moltiplicata x3)
+            tessedit_pageseg_mode: '7', 
         });
         
         pronto = true;
         statusBlock.innerText = "PRONTO";
-        subText.innerText = "Piazza la data di nascita nel rettangolo verde";
+        subText.innerText = "Centra i numeri della data nel laser verde";
         loopScansione();
     }
 
     async function startCamera() {
+        // Vincoli hardware avanzati per forzare la modalità macro e la messa a fuoco chirurgica
+        const vincoliAvanzati = {
+            video: {
+                facingMode: "environment",
+                width: { exact: 1280 },
+                height: { exact: 720 },
+                // Configurazione focus avanzata (supportata dai browser moderni)
+                focusMode: { ideal: "continuous" },
+                exposureMode: { ideal: "continuous" },
+                whiteBalanceMode: { ideal: "continuous" }
+            },
+            audio: false
+        };
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-                audio: false
-            });
+            const stream = await navigator.mediaDevices.getUserMedia(vincoliAvanzati);
             video.srcObject = stream;
+            
+            // Appena la traccia video è attiva, proviamo a forzare ulteriormente i controlli nativi della lente
+            setTimeout(() => {
+                try {
+                    const track = stream.getVideoTracks()[0];
+                    const capabilities = track.getCapabilities();
+                    const constraints = {};
+                    
+                    // Se il telefono supporta la modalità macro o la messa a fuoco continua avanzata, la blindiamo
+                    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+                        constraints.focusMode = 'continuous';
+                    }
+                    if (capabilities.exposureMode && capabilities.exposureMode.includes('continuous')) {
+                        constraints.exposureMode = 'continuous';
+                    }
+                    
+                    track.applyConstraints(constraints);
+                } catch(e) { console.log("Vincoli avanzati hardware non modificabili, uso quelli standard."); }
+            }, 1000);
+
         } catch (err) {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            // Fallback leggero se il telefono rifiuta la risoluzione esatta richiesti
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }, 
+                audio: false 
+            });
             video.srcObject = stream;
         }
     }
 
-    // Convertitore di contrasto istantaneo ad alto frame-rate
     function applicaFiltroFlash(imageData) {
         let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
             let gray = (d[i] + d[i+1] + d[i+2]) / 3;
-            // Soglia spinta per separare nettamente l'inchiostro dalla plastica riflettente
             let b = (gray > 115) ? 255 : 0;
             d[i] = d[i+1] = d[i+2] = b;
         }
@@ -131,14 +164,13 @@ HTML_TEMPLATE = """
 
     async function loopScansione() {
         if (!pronto || bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) {
-            setTimeout(loopScansione, 30);
+            setTimeout(loopScansione, 25);
             return;
         }
 
         let videoW = video.videoWidth;
         let videoH = video.videoHeight;
         
-        // Calcolo millimetrico dell'area utile (Box centrale 80% larghezza, 20% altezza)
         let cropX = videoW * 0.10;
         let cropY = videoH * 0.40;
         let cropW = videoW * 0.80;
@@ -151,8 +183,6 @@ HTML_TEMPLATE = """
         
         try {
             const { data: { text } } = await worker.recognize(processingCanvas);
-            
-            // Estrazione numerica pulita immediata
             let pulito = text.replace(/[^0-9\/\-\.]/g, '');
             let matches = pulito.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/);
             
@@ -173,7 +203,6 @@ HTML_TEMPLATE = """
                         eta--;
                     }
                     
-                    // Discriminazione immediata di scadenze/emissioni
                     if (eta >= 16 && eta <= 75) {
                         bloccato = true;
                         let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
@@ -205,10 +234,10 @@ HTML_TEMPLATE = """
                             setTimeout(() => {
                                 statusBlock.className = 'status-box';
                                 statusBlock.innerText = 'PRONTO';
-                                subText.innerText = "Piazza la data di nascita nel rettangolo verde";
+                                subText.innerText = "Centra i numeri della data nel laser verde";
                                 bloccato = false;
                                 loopScansione();
-                            }, 1300); // Reset rapido a 1.3 secondi per smaltire la fila fuori
+                            }, 1300);
                         }).catch(() => { bloccato = false; loopScansione(); });
                         return;
                     }
@@ -218,7 +247,7 @@ HTML_TEMPLATE = """
             console.error(e);
         }
 
-        setTimeout(loopScansione, 25); // Frequenza di campionamento schiacciata al minimo ritardo fisico
+        setTimeout(loopScansione, 20);
     }
 
     startCamera();
