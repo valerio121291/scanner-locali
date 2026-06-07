@@ -41,35 +41,31 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Madre Laser Zone Scanner</title>
+    <title>Madre Laser Precision v11</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background-color: #050505; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background-color: #030303; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 400px; width: 100%; text-align: center; }
         
-        /* Contenitore video */
-        .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 3px solid #1a1a1a; background: #000; }
+        .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 24px; overflow: hidden; border: 3px solid #222; background: #000; box-shadow: 0 12px 40px rgba(0,0,0,0.8); }
         video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* Il mirino ora rappresenta l'UNICA zona che l'IA leggerà davvero */
-        .mirino { position: absolute; top: 35%; left: 5%; width: 90%; height: 30%; border: 3px solid #00ffcc; border-radius: 8px; pointer-events: none; box-shadow: 0 0 20px rgba(0,255,204,0.4); box-sizing: border-box; }
-        .oscuratore-top { position: absolute; top: 0; left: 0; width: 100%; height: 35%; background: rgba(0,0,0,0.6); pointer-events: none; }
-        .oscuratore-bottom { position: absolute; top: 65%; left: 0; width: 100%; height: 35%; background: rgba(0,0,0,0.6); pointer-events: none; }
+        /* Zona di mira ristretta per massima precisione di focus numerico */
+        .mirino { position: absolute; top: 38%; left: 8%; width: 84%; height: 24%; border: 3px solid #00ffcc; border-radius: 10px; pointer-events: none; box-shadow: 0 0 25px rgba(0,255,204,0.5); box-sizing: border-box; z-index: 10; }
+        .oscuratore-top { position: absolute; top: 0; left: 0; width: 100%; height: 38%; background: rgba(0,0,0,0.7); pointer-events: none; z-index: 5; }
+        .oscuratore-bottom { position: absolute; top: 62%; left: 0; width: 100%; height: 38%; background: rgba(0,0,0,0.7); pointer-events: none; z-index: 5; }
         
-        .status-box { width: 100%; padding: 20px 0; border-radius: 16px; margin-top: 20px; font-size: 2rem; font-weight: bold; background-color: #121212; border: 2px solid #222; transition: all 0.1s ease; letter-spacing: 0.5px; }
-        .maggiorenne { background-color: #2eb85c !important; color: white; border-color: #1f7a3e; box-shadow: 0 0 30px rgba(46,184,92,0.7); }
-        .minorenne { background-color: #e55353 !important; color: white; border-color: #a33939; box-shadow: 0 0 30px rgba(229,83,83,0.7); }
-        #sub-text { color: #aaa; font-size: 0.95rem; margin-top: 12px; min-height: 40px; line-height: 1.4; }
-        
-        /* Canvas di debug visibile solo per regolazione ottimale dello zoom */
-        #debugCanvas { width: 100%; max-width: 340px; height: auto; border: 1px solid #333; margin-top: 10px; border-radius: 8px; background: #000; display: none; }
+        .status-box { width: 100%; padding: 22px 0; border-radius: 18px; margin-top: 25px; font-size: 2.1rem; font-weight: bold; background-color: #111; border: 2px solid #222; transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275); letter-spacing: 1px; }
+        .maggiorenne { background-color: #10b981 !important; color: white; border-color: #059669; box-shadow: 0 0 35px rgba(16,185,129,0.8); }
+        .minorenne { background-color: #ef4444 !important; color: white; border-color: #dc2626; box-shadow: 0 0 35px rgba(239,68,68,0.8); }
+        #sub-text { color: #94a3b8; font-size: 1rem; margin-top: 15px; min-height: 45px; line-height: 1.4; font-weight: 500; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0; font-weight: 800; color: #fff;">MADRE TARGET v10</h2>
-    <p style="color: #666; margin: 0 0 15px 0; font-size: 0.85rem;">Metti la data di nascita REALE dentro il rettangolo chiaro</p>
+    <h2 style="margin: 0 0 5px 0; font-weight: 800; color: #fff; letter-spacing: -0.5px;">MADRE PRECISION v11</h2>
+    <p style="color: #475569; margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 600;">Isolamento HD e Filtro Ottico Ottimizzato</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
@@ -78,22 +74,18 @@ HTML_TEMPLATE = """
         <div class="oscuratore-bottom"></div>
     </div>
 
-    <div id="status-block" class="status-box">ACCENSIONE...</div>
-    <div id="sub-text">Inizializzazione lenti digitali...</div>
-    
-    <canvas id="debugCanvas"></canvas>
+    <div id="status-block" class="status-box">CALIBRAZIONE...</div>
+    <div id="sub-text">Allineamento sensori di precisione...</div>
 </div>
 
-<canvas id="processingCanvas" style="display:none;" width="400" height="120"></canvas>
+<canvas id="processingCanvas" style="display:none;" width="600" height="160"></canvas>
 
 <script>
     const video = document.getElementById('video');
     const processingCanvas = document.getElementById('processingCanvas');
-    const debugCanvas = document.getElementById('debugCanvas');
     const statusBlock = document.getElementById('status-block');
     const subText = document.getElementById('sub-text');
     const pCtx = processingCanvas.getContext('2d');
-    const dCtx = debugCanvas.getContext('2d');
     
     let worker = null;
     let bloccato = false;
@@ -101,7 +93,7 @@ HTML_TEMPLATE = """
 
     async function inizializzaOCR() {
         statusBlock.innerText = "AVVIO MOTORE...";
-        worker = await Tesseract.createWorker('eng'); // Carichiamo solo numeri inglesi, fulmineo
+        worker = await Tesseract.createWorker('eng');
         
         await worker.setParameters({
             tessedit_char_whitelist: '0123456789/.- ',
@@ -109,14 +101,14 @@ HTML_TEMPLATE = """
         
         pronto = true;
         statusBlock.innerText = "PRONTO AL VARCO";
-        subText.innerText = "Inquadra SOLO la riga con la data di nascita";
+        subText.innerText = "Inquadra stabilmente la riga della data nel box";
         loopScansione();
     }
 
     async function startCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
                 audio: false
             });
             video.srcObject = stream;
@@ -126,14 +118,14 @@ HTML_TEMPLATE = """
         }
     }
 
-    // Filtro di binarizzazione estrema per distruggere ombre e sfondi colorati dei documenti
-    function applicaFiltroOCR(imageData) {
+    // Filtro adattivo ad alto stacco per distruggere i riflessi lucidi e le patine cromatiche delle tessere plastiche
+    function applicaFiltroPrecisione(imageData) {
         let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
-            // Estraiamo la luminanza dando priorità al verde e rosso per eliminare le patine bluastre delle tessere
-            let v = (0.3 * d[i] + 0.59 * d[i+1] + 0.11 * d[i+2]);
-            // Soglia aggressiva: se il pixel è scuro diventa nero pesto, se è chiaro diventa bianco candido
-            v = (v > 110) ? 255 : 0;
+            // Diamo maggiore enfasi al canale rosso e verde per abbattere i riflessi olografici blu/viola delle discoteche
+            let v = (0.35 * d[i] + 0.55 * d[i+1] + 0.10 * d[i+2]);
+            // Soglia netta antiriflesso
+            v = (v > 115) ? 255 : 0;
             d[i] = d[i+1] = d[i+2] = v;
         }
         return imageData;
@@ -145,31 +137,34 @@ HTML_TEMPLATE = """
             return;
         }
 
-        // 🎯 RITAGLIO GEOMETRICO (ROI): Prendiamo solo la porzione centrale del video (corrispondente al mirino)
-        // Evitiamo di scansionare il 70% del frame inutile.
+        // Recuperiamo le dimensioni reali del flusso video (HD)
         let videoW = video.videoWidth;
         let videoH = video.videoHeight;
         
-        let cropX = videoW * 0.05;
-        let cropY = videoH * 0.35;
-        let cropW = videoW * 0.90;
-        let cropH = videoH * 0.30;
+        // Calcoliamo geometricamente la porzione del mirino centrale sul flusso HD reale
+        let cropX = videoW * 0.08;
+        let cropY = videoH * 0.38;
+        let cropW = videoW * 0.84;
+        let cropH = videoH * 0.24;
 
-        // Disegniamo il ritaglio sul piccolo canvas di elaborazione
+        // Disegniamo sul canvas aumentando la densità dei pixel per rendere i caratteri ultra-definiti
         pCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, processingCanvas.width, processingCanvas.height);
         
-        // Applichiamo il filtro binarizzante ad alto stacco
         let imgData = pCtx.getImageData(0, 0, processingCanvas.width, processingCanvas.height);
-        pCtx.putImageData(applicaFiltroOCR(imgData), 0, 0);
+        pCtx.putImageData(applicaFiltroPrecisione(imgData), 0, 0);
         
         try {
-            // L'OCR analizza pochissimi pixel puliti in bianco e nero: calcolo immediato
             const { data: { text } } = await worker.recognize(processingCanvas);
             
-            let matches = text.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
+            // Validazione formati data rigorosa (evita falsi positivi con numeri seriali)
+            let matches = text.replace(/\s+/g, '').match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
             
             if (matches) {
                 for (let matchStr of matches) {
+                    let separators = matchStr.match(/[\/\-\.]/g);
+                    // Controllo coerenza separatori (evita letture sporche come 12/12.19)
+                    if (separators && separators[0] !== separators[1]) continue;
+
                     let parti = matchStr.split(/[\/\-\.]/);
                     let giorno = parseInt(parti[0]);
                     let mese = parseInt(parti[1]);
@@ -188,8 +183,8 @@ HTML_TEMPLATE = """
                             eta--;
                         }
                         
-                        // Accettiamo solo età sensate da locale per scartare scadenze ed emissioni arbitrarie
-                        if (eta >= 16 && eta <= 75) {
+                        // Finestra d'età logica per escludere emissioni e scadenze dei documenti
+                        if (eta >= 15 && eta <= 75) {
                             bloccato = true;
                             let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
                             
@@ -220,7 +215,7 @@ HTML_TEMPLATE = """
                                 setTimeout(() => {
                                     statusBlock.className = 'status-box';
                                     statusBlock.innerText = 'PRONTO AL VARCO';
-                                    subText.innerText = 'Inquadra SOLO la riga con la data di nascita';
+                                    subText.innerText = 'Inquadra stabilmente la riga della data nel box';
                                     bloccato = false;
                                     loopScansione();
                                 }, 1500);
@@ -234,14 +229,13 @@ HTML_TEMPLATE = """
             console.error(e);
         }
 
-        setTimeout(loopScansione, 40);
+        setTimeout(loopScansione, 45);
     }
 
     startCamera();
     inizializzaOCR();
 </script>
 
-</script>
 </body>
 </html>
 """
