@@ -42,7 +42,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Scanner Madre Ultra</title>
+    <title>Scanner Madre Diagnostics</title>
     <script src="https://unpkg.com/@zxing/library@latest"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #121212; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
@@ -50,19 +50,20 @@ HTML_TEMPLATE = """
         .video-container { position: relative; width: 100%; max-width: 360px; height: 240px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 3px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
         .mirino { position: absolute; top: 25%; left: 5%; width: 90%; height: 50%; border: 3px dashed rgba(255,255,255,0.7); border-radius: 12px; pointer-events: none; }
-        .laser { position: absolute; top: 50%; left: 10%; width: 80%; height: 2px; background-color: #e55353; box-shadow: 0 0 8px #e55353; animation: scan 2s infinite linear; pointer-events: none; }
+        .laser { position: absolute; top: 50%; left: 10%; width: 80%; height: 2px; background-color: #00ffcc; box-shadow: 0 0 8px #00ffcc; animation: scan 2s infinite linear; pointer-events: none; }
         @keyframes scan { 0% { top: 25%; } 50% { top: 75%; } 100% { top: 25%; } }
-        .status-circle { width: 140px; height: 140px; border-radius: 50%; margin: 25px auto; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; transition: all 0.4s ease; background-color: #222; border: 4px solid #333; }
+        .status-circle { width: 130px; height: 130px; border-radius: 50%; margin: 25px auto; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; transition: all 0.4s ease; background-color: #222; border: 4px solid #333; }
         .maggiorenne { background-color: #2eb85c; border-color: #1f7a3e; box-shadow: 0 0 35px #2eb85c; }
         .minorenne { background-color: #e55353; border-color: #a33939; box-shadow: 0 0 35px #e55353; }
-        #info { font-size: 1.3rem; font-weight: bold; margin-top: 10px; min-height: 60px; color: #e0e0e0; }
+        #info { font-size: 1.2rem; font-weight: bold; margin-top: 10px; min-height: 50px; color: #e0e0e0; }
+        #debug-panel { margin-top: 15px; padding: 10px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; font-family: monospace; font-size: 0.8rem; color: #00ff00; text-align: left; max-height: 100px; overflow-y: auto; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 style="margin-bottom: 5px; color: #fff;">Scanner Madre Ultra</h2>
-    <p id="sub" style="color: #aaa; margin-top: 0; font-size: 0.95rem;">Inquadra il CODICE A BARRE sul retro della tessera</p>
+    <h2 style="margin-bottom: 5px; color: #fff;">Scanner Madre PRO</h2>
+    <p style="color: #aaa; margin-top: 0; font-size: 0.95rem;">Inquadra il codice a barre sul retro</p>
 
     <div class="video-container">
         <video id="video"></video>
@@ -72,12 +73,16 @@ HTML_TEMPLATE = """
 
     <div id="circle" class="status-circle">📸</div>
     <div id="info">Punta il codice a barre...</div>
+    
+    <div style="color: #666; font-size: 0.8rem; margin-top: 15px; text-align: left;">Testo rilevato nel Barcode:</div>
+    <div id="debug-panel">In attesa di lettura codice...</div>
 </div>
 
 <script>
     const video = document.getElementById('video');
     const circle = document.getElementById('circle');
     const info = document.getElementById('info');
+    const debugPanel = document.getElementById('debug-panel');
     
     const codeReader = new ZXing.BrowserMultiFormatReader();
     let bloccato = false;
@@ -99,18 +104,18 @@ HTML_TEMPLATE = """
         }
     }
 
-    // Funzione per estrarre la data di nascita dalle stringhe dei codici a barre italiani
     function analizzaTestoBarcode(testo) {
-        // Cerca formati standard GG/MM/AAAA o simili
+        // Pulizia spazi iniziali/finali
+        testo = testo.trim();
+        
+        // 1. Cerca formato standard GG/MM/AAAA o GG-MM-AAAA
         let dateTrovate = testo.match(/\\d{2}[\\/\\-\\.]\\d{2}[\\/\\-\\.]\\d{4}/);
         if (dateTrovate) return dateTrovate[0];
 
-        // Gestione retro Codice Fiscale / Tessera Sanitaria italiana
-        // Spesso contengono sequenze da 8 numeri consecutivi corrispondenti a AAAAMMGG o GGMMAAAA
+        // 2. Cerca sequenza pulita di 8 numeri consecutivi (es. 19950815 o 15081995)
         let numeri8 = testo.match(/\\d{8}/g);
         if (numeri8) {
             for (let seq of numeri8) {
-                // Prova AAAAMMGG
                 let anno = parseInt(seq.substring(0,4));
                 let mese = parseInt(seq.substring(4,6));
                 let giorno = parseInt(seq.substring(6,8));
@@ -118,7 +123,6 @@ HTML_TEMPLATE = """
                     return giorno.toString().padStart(2, '0') + '/' + mese.toString().padStart(2, '0') + '/' + anno;
                 }
                 
-                // Prova GGMMAAAA
                 giorno = parseInt(seq.substring(0,2));
                 mese = parseInt(seq.substring(2,4));
                 anno = parseInt(seq.substring(4,8));
@@ -127,12 +131,35 @@ HTML_TEMPLATE = """
                 }
             }
         }
+
+        // 3. Algoritmo specifico per estrarre la data dal CODICE FISCALE italiano se presente nel barcode
+        // Esempio CF: RSSMRA95M15H501Z -> Anno: 95, Mese: M (Agosto), Giorno: 15
+        let cfMatch = testo.match(/[A-Z]{6}(\\d{2})([A-EHLMPR-T])(\\d{2})[A-Z]\\d{3}[A-Z]/i);
+        if (cfMatch) {
+            let annoDec = cfMatch[1];
+            let meseLettera = cfMatch[2].toUpperCase();
+            let giornoDec = parseInt(cfMatch[3]);
+            
+            // Se il giorno è > 40 significa che si tratta di una donna, quindi sottraiamo 40
+            if (giornoDec > 40) giornoDec = giornoDec - 40;
+            
+            // Mappa mesi codice fiscale
+            const mesiMappa = { 'A':1, 'B':2, 'C':3, 'D':4, 'E':5, 'H':6, 'L':7, 'M':8, 'P':9, 'R':10, 'S':11, 'T':12 };
+            let meseDec = mesiMappa[meseLettera];
+            
+            let annoCorrenteCorto = new Date().getFullYear() % 100;
+            let annoDecIntero = parseInt(annoDec);
+            let annoQuattroCifre = (annoDecIntero <= annoCorrenteCorto) ? (2000 + annoDecIntero) : (1900 + annoDecIntero);
+            
+            if (meseDec && giornoDec >= 1 && giornoDec <= 31) {
+                return giornoDec.toString().padStart(2, '0') + '/' + meseDec.toString().padStart(2, '0') + '/' + annoQuattroCifre;
+            }
+        }
         return null;
     }
 
     codeReader.listVideoInputDevices()
         .then((videoInputDevices) => {
-            // Seleziona preferibilmente la fotocamera posteriore
             let selectedDeviceId = videoInputDevices[0].deviceId;
             if (videoInputDevices.length > 1) {
                 for(let device of videoInputDevices) {
@@ -146,12 +173,13 @@ HTML_TEMPLATE = """
             codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
                 if (result && !bloccato) {
                     let testoRilevato = result.text;
+                    debugPanel.innerText = testoRilevato; // Mostra subito cosa c'è scritto dentro!
+                    
                     let dataNascita = analizzaTestoBarcode(testoRilevato);
                     
                     if (dataNascita) {
                         bloccato = true;
                         
-                        // Spedisce al server solo per salvare in memoria
                         fetch('/elabora_scansione', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -175,6 +203,8 @@ HTML_TEMPLATE = """
                                 bloccato = false;
                             }, 3500);
                         });
+                    } else {
+                        info.innerText = "Codice letto, ma nessuna data trovata.";
                     }
                 }
             });
@@ -201,7 +231,7 @@ def elabora_scansione():
     data_str = data['data_nascita']
     giorno, mese, anno = map(int, data_str.split('/'))
     
-    data_nascita = datetime(anno, mese, giorno)
+    data_nascita = datetime(anno, mese, girono) if 'girono' in locals() else datetime(anno, mese, giorno)
     oggi = datetime.now()
     eta = oggi.year - data_nascita.year - ((oggi.month, oggi.day) < (data_nascita.month, data_nascita.day))
     
