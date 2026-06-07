@@ -2,7 +2,6 @@ from flask import Flask, render_template_string, request, jsonify
 from datetime import datetime
 import json
 import os
-import re
 
 app = Flask(__name__)
 
@@ -42,7 +41,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Madre Document Context v15</title>
+    <title>Madre Omnia v16</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #020202; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
@@ -51,7 +50,7 @@ HTML_TEMPLATE = """
         .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 24px; overflow: hidden; border: 3px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
         
-        /* Box di mira totale: basta infilare il documento qui dentro, fronte visibile */
+        /* Box universale: basta che il documento sia visibile all'interno */
         .mirino { position: absolute; top: 10%; left: 5%; width: 90%; height: 80%; border: 3px solid #00ffcc; border-radius: 16px; pointer-events: none; box-shadow: 0 0 30px rgba(0,255,204,0.25); box-sizing: border-box; z-index: 10; }
         .oscuratore-top { position: absolute; top: 0; left: 0; width: 100%; height: 10%; background: rgba(0,0,0,0.5); pointer-events: none; z-index: 5; }
         .oscuratore-bottom { position: absolute; top: 90%; left: 0; width: 100%; height: 10%; background: rgba(0,0,0,0.5); pointer-events: none; z-index: 5; }
@@ -65,8 +64,8 @@ HTML_TEMPLATE = """
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0; font-weight: 900; color: #fff; letter-spacing: -0.5px;">MADRE CONTEXT v15</h2>
-    <p style="color: #4b5563; margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">Analisi Strutturale Standard UE</p>
+    <h2 style="margin: 0 0 5px 0; font-weight: 900; color: #fff; letter-spacing: -0.5px;">MADRE OMNIA v16</h2>
+    <p style="color: #00ffcc; margin: 0 0 15px 0; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Riconoscimento Globale Internazionale</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
@@ -75,8 +74,8 @@ HTML_TEMPLATE = """
         <div class="oscuratore-bottom"></div>
     </div>
 
-    <div id="status-block" class="status-box">LOG-IN...</div>
-    <div id="sub-text">Inquadra il FRONTE del documento nel box</div>
+    <div id="status-block" class="status-box">AVVIO...</div>
+    <div id="sub-text">Analizzatore generazionale attivo...</div>
 </div>
 
 <canvas id="processingCanvas" style="display:none;" width="640" height="480"></canvas>
@@ -94,28 +93,22 @@ HTML_TEMPLATE = """
 
     async function inizializzaOCR() {
         worker = await Tesseract.createWorker('eng');
-        // Riapriamo il whitelist anche alle lettere per intercettare i punti chiave del documento (es. '3.', 'birth')
+        // Whitelist puramente numerica e di separatori per massimizzare la velocità di calcolo (Tesseract vola così)
         await worker.setParameters({
-            tessedit_char_whitelist: '0123456789/.- abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.',
+            tessedit_char_whitelist: '0123456789/.- ',
             tessedit_pageseg_mode: '11', 
         });
         
         pronto = true;
         statusBlock.innerText = "PRONTO";
-        subText.innerText = "Mostra il fronte del documento";
+        subText.innerText = "Inquadra qualsiasi documento (Ita, Estero, Militare)";
         loopScansione();
     }
 
     async function startCamera() {
         try {
-            // Ottimizzazione hardware: Forziamo la messa a fuoco continua Macro
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { 
-                    facingMode: "environment", 
-                    width: { ideal: 640 }, 
-                    height: { ideal: 480 },
-                    focusMode: { ideal: "continuous" }
-                },
+                video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 }, focusMode: { ideal: "continuous" } },
                 audio: false
             });
             video.srcObject = stream;
@@ -125,13 +118,12 @@ HTML_TEMPLATE = """
         }
     }
 
-    // Filtro bilanciato per far risaltare il testo rispetto ai pattern grafici dello sfondo dei documenti
-    function applicaFiltroDocumenti(imageData) {
+    function applicaFiltroUniversale(imageData) {
         let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
-            // Estrazione luminanza bilanciata per abbattere lo sfondo rosa/azzurro delle tessere
-            let gray = (0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]);
-            let b = (gray > 125) ? 255 : 0;
+            let gray = (0.3 * d[i] + 0.59 * d[i+1] + 0.11 * d[i+2]);
+            // Soglia spinta per separare i blocchi di testo dallo sfondo stampato di qualsiasi nazione
+            let b = (gray > 120) ? 255 : 0;
             d[i] = d[i+1] = d[i+2] = b;
         }
         return imageData;
@@ -139,7 +131,7 @@ HTML_TEMPLATE = """
 
     async function loopScansione() {
         if (!pronto || bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) {
-            setTimeout(loopScansione, 30);
+            setTimeout(loopScansione, 25);
             return;
         }
 
@@ -154,122 +146,83 @@ HTML_TEMPLATE = """
         pCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, processingCanvas.width, processingCanvas.height);
         
         let imgData = pCtx.getImageData(0, 0, processingCanvas.width, processingCanvas.height);
-        pCtx.putImageData(applicaFiltroDocumenti(imgData), 0, 0);
+        pCtx.putImageData(applicaFiltroUniversale(imgData), 0, 0);
         
         try {
             const { data: { text } } = await worker.recognize(processingCanvas);
             
-            // Dividiamo il testo estratto in righe per applicare l'algoritmo di analisi contestuale
-            let righe = text.toLowerCase().split('\\n');
+            // Estrae TUTTI i pattern che somigliano a una data all'interno della stringa catturata
+            let pulito = text.replace(/[^0-9\/\-\. ]/g, ' ');
+            let matches = pulito.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
             
-            for (let riga of righe) {
-                // 🔎 STRATEGIA DI ANCORAGGIO CONTESTUALE:
-                // Se la riga contiene i punti chiave della data di nascita ('3.', 'birth', 'nasc', 'dat')
-                // MA non contiene i punti di scadenza/emissione ('4a', '4b', 'scad')
-                if ((riga.includes('3.') || riga.includes('birth') || riga.includes('nasc') || riga.includes('dat')) && 
-                    !riga.includes('4a') && !riga.includes('4b')) {
-                    
-                    // Cerchiamo una data in questa riga specifica
-                    let match = riga.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/);
-                    
-                    if (match) {
-                        let giorno = parseInt(match[1]);
-                        let mese = parseInt(match[2]);
-                        let annoStr = match[3];
-                        let anno = parseInt(annoStr);
-                        
-                        if (annoStr.length === 2) {
-                            let annoCorrenteCorto = new Date().getFullYear() % 100;
-                            anno = (anno <= annoCorrenteCorto) ? (2000 + anno) : (1900 + anno);
-                        }
-                        
-                        if (giorno >= 1 && giorno <= 31 && mese >= 1 && mese <= 12) {
-                            let oggi = new Date();
-                            let eta = oggi.getFullYear() - anno;
-                            if (oggi.getMonth() + 1 < mese || (oggi.getMonth() + 1 === mese && oggi.getDate() < giorno)) {
-                                eta--;
-                            }
-                            
-                            if (eta >= 16 && eta <= 75) {
-                                bloccato = true;
-                                let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
-                                
-                                fetch('/salva_scansione', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ data: dataValida })
-                                })
-                               .then(res => res.json())
-                               .then(data => {
-                                    if (data.esito === 'MAGGIORENNE') {
-                                        statusBlock.className = 'status-box maggiorenne';
-                                        statusBlock.innerText = '✔️ PASSA';
-                                    } else {
-                                        statusBlock.className = 'status-box minorenne';
-                                        statusBlock.innerText = '❌ MINORENNE';
-                                    }
-                                    subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${data.eta} anni</b>`;
-                                    
-                                    try {
-                                        let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                                        let osc = audioCtx.createOscillator();
-                                        osc.frequency.setValueAtTime(data.esito === 'MAGGIORENNE' ? 880 : 220, audioCtx.currentTime);
-                                        osc.connect(audioCtx.destination);
-                                        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-                                    } catch(e) {}
+            if (matches) {
+                for (let matchStr of matches) {
+                    let separators = matchStr.match(/[\/\-\.]/g);
+                    if (separators && separators[0] !== separators[1]) continue;
 
-                                    setTimeout(() => {
-                                        statusBlock.className = 'status-box';
-                                        statusBlock.innerText = 'PRONTO';
-                                        subText.innerText = 'Mostra il fronte del documento';
-                                        bloccato = false;
-                                        loopScansione();
-                                    }, 1400);
-                                }).catch(() => { bloccato = false; loopScansione(); });
-                                return;
-                            }
+                    let parti = matchStr.split(/[\/\-\.]/);
+                    let giorno = parseInt(parti[0]);
+                    let mese = parseInt(parti[1]);
+                    let annoStr = parti[2];
+                    let anno = parseInt(annoStr);
+                    
+                    if (annoStr.length === 2) {
+                        let annoCorrenteCorto = new Date().getFullYear() % 100;
+                        anno = (anno <= annoCorrenteCorto) ? (2000 + anno) : (1900 + anno);
+                    }
+                    
+                    if (giorno >= 1 && giorno <= 31 && mese >= 1 && mese <= 12) {
+                        let oggi = new Date();
+                        let eta = oggi.getFullYear() - anno;
+                        if (oggi.getMonth() + 1 < mese || (oggi.getMonth() + 1 === mese && oggi.getDate() < giorno)) {
+                            eta--;
+                        }
+                        
+                        // 🔥 LA LOGICA FILTRO GENERAZIONALE:
+                        // Una data di nascita valida per un utente che entra in un locale DEVE generare un'età
+                        // realistica (es. tra i 16 e i 75 anni). 
+                        // Le date di rilascio o di scadenza genereranno età assurde (es. -5 anni, 2 anni, ecc.) e verranno AUTOMATICAMENTE ignorate.
+                        if (eta >= 16 && eta <= 75) {
+                            bloccato = true;
+                            let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
+                            
+                            fetch('/salva_scansione', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ data: dataValida })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.esito === 'MAGGIORENNE') {
+                                    statusBlock.className = 'status-box maggiorenne';
+                                    statusBlock.innerText = '✔️ PASSA';
+                                } else {
+                                    statusBlock.className = 'status-box minorenne';
+                                    statusBlock.innerText = '❌ MINORENNE';
+                                }
+                                subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${data.eta} anni</b>`;
+                                
+                                try {
+                                    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                                    let osc = audioCtx.createOscillator();
+                                    osc.frequency.setValueAtTime(data.esito === 'MAGGIORENNE' ? 880 : 220, audioCtx.currentTime);
+                                    osc.connect(audioCtx.destination);
+                                    osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+                                } catch(e) {}
+
+                                setTimeout(() => {
+                                    statusBlock.className = 'status-box';
+                                    statusBlock.innerText = 'PRONTO';
+                                    subText.innerText = 'Inquadra qualsiasi documento (Ita, Estero, Militare)';
+                                    bloccato = false;
+                                    loopScansione();
+                                }, 1400);
+                            }).catch(() => { bloccato = false; loopScansione(); });
+                            return;
                         }
                     }
                 }
             }
-            
-            // FALLBACK IMMEDIATO: Se l'ancora contestuale è sbiadita, cerca comunque una data logica ovunque
-            let pulito = text.replace(/[^0-9\/\-\.]/g, '');
-            let fallbackMatch = pulito.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/);
-            if (fallbackMatch && !bloccato) {
-                let giorno = parseInt(fallbackMatch[1]);
-                let mese = parseInt(fallbackMatch[2]);
-                let annoStr = fallbackMatch[3];
-                let anno = parseInt(annoStr);
-                
-                if (annoStr.length === 2) { anno = (anno <= (new Date().getFullYear() % 100)) ? (2000 + anno) : (1900 + anno); }
-                if (giorno >= 1 && giorno <= 31 && mese >= 1 && mese <= 12) {
-                    let oggi = new Date();
-                    let eta = oggi.getFullYear() - anno;
-                    if (oggi.getMonth() + 1 < mese || (oggi.getMonth() + 1 === mese && oggi.getDate() < giorno)) { eta--; }
-                    
-                    if (eta >= 18 && eta <= 60) { // Finestra di sicurezza per evitare scadenze
-                        bloccato = true;
-                        let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
-                        fetch('/salva_scansione', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ data: dataValida })
-                        })
-                        .then(res => res.json())
-                        .then(data => {
-                            statusBlock.className = 'status-box maggiorenne';
-                            statusBlock.innerText = '✔️ PASSA';
-                            subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${data.eta} anni</b>`;
-                            setTimeout(() => {
-                                statusBlock.className = 'status-box'; statusBlock.innerText = 'PRONTO'; bloccato = false; loopScansione();
-                            }, 1400);
-                        }).catch(() => { bloccato = false; loopScansione(); });
-                        return;
-                    }
-                }
-            }
-            
         } catch (e) {
             console.error(e);
         }
