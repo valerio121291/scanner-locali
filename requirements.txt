@@ -1,4 +1,6 @@
 Flask==3.0.2
 Pillow==10.2.0
 pytesseract==0.3.10
+zxing-cpp==2.3.0
 gunicorn==21.2.0
+
