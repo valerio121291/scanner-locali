@@ -33,7 +33,7 @@ def salva_in_memoria(esito, eta, data_nascita):
             json.dump(data, f, indent=4)
             f.truncate()
     except Exception as e:
-        print(f"Errore memoria: {e}")
+        print(f"Errore scrittura memoria: {e}")
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -41,37 +41,36 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Madre AI Cognitive Scanner</title>
+    <title>Madre Scanner Ultra-Light</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background-color: #08080c; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background-color: #050505; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 400px; width: 100%; text-align: center; }
-        .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 24px; overflow: hidden; border: 2px solid #333; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 3px solid #1a1a1a; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .mirino { position: absolute; top: 15%; left: 5%; width: 90%; height: 70%; border: 2px dashed #00ffcc; border-radius: 16px; pointer-events: none; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
-        .status-box { width: 100%; padding: 20px 0; border-radius: 18px; margin-top: 25px; font-size: 1.8rem; font-weight: bold; background-color: #12121a; border: 1px solid #222533; transition: all 0.2s ease; }
-        .maggiorenne { background-color: #10b981 !important; color: white; border-color: #047857; box-shadow: 0 0 30px rgba(16,185,129,0.5); }
-        .minorenne { background-color: #ef4444 !important; color: white; border-color: #b91c1c; box-shadow: 0 0 30px rgba(239,68,68,0.5); }
-        #sub-text { color: #94a3b8; font-size: 0.95rem; margin-top: 15px; min-height: 50px; font-weight: 500; }
+        .mirino { position: absolute; top: 25%; left: 5%; width: 90%; height: 50%; border: 3px solid #00ffcc; border-radius: 12px; pointer-events: none; box-shadow: 0 0 20px rgba(0,255,204,0.4); }
+        .status-box { width: 100%; padding: 20px 0; border-radius: 16px; margin-top: 20px; font-size: 2rem; font-weight: bold; background-color: #121212; border: 2px solid #222; transition: all 0.1s ease; letter-spacing: 0.5px; }
+        .maggiorenne { background-color: #2eb85c !important; color: white; border-color: #1f7a3e; box-shadow: 0 0 30px rgba(46,184,92,0.7); }
+        .minorenne { background-color: #e55353 !important; color: white; border-color: #a33939; box-shadow: 0 0 30px rgba(229,83,83,0.7); }
+        #sub-text { color: #888; font-size: 0.95rem; margin-top: 12px; min-height: 40px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0; font-weight: 800; letter-spacing: -0.5px; background: linear-gradient(to right, #00ffcc, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">MADRE COGNITIVE v8</h2>
-    <p style="color: #64748b; margin: 0 0 20px 0; font-size: 0.85rem;">Lettura Semantica Universale (Qualsiasi Paese)</p>
+    <h2 style="margin: 0 0 5px 0; font-weight: 800; color: #fff;">MADRE LIGHT v9</h2>
+    <p style="color: #555; margin: 0 0 15px 0; font-size: 0.85rem;">Analisi Temporale Intelligente - CIE ed Estere</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
         <div class="mirino"></div>
     </div>
 
-    <div id="status-block" class="status-box">ANALISI RETE...</div>
-    <div id="sub-text">Inizializzazione intelligenza contestuale...</div>
+    <div id="status-block" class="status-box">ACCENSIONE...</div>
+    <div id="sub-text">Inizializzazione fotocamera...</div>
 </div>
 
-<canvas id="canvas" style="display:none;" width="800" height="600"></canvas>
+<canvas id="canvas" style="display:none;" width="640" height="480"></canvas>
 
 <script>
     const video = document.getElementById('video');
@@ -80,29 +79,48 @@ HTML_TEMPLATE = """
     const subText = document.getElementById('sub-text');
     const ctx = canvas.getContext('2d');
     
-    let scheduler = null;
+    let worker = null;
     let bloccato = false;
     let pronto = false;
 
-    async function inizializzaAI() {
-        statusBlock.innerText = "CARICAMENTO IA...";
+    async function inizializzaOCR() {
+        statusBlock.innerText = "AVVIO MOTORE...";
+        // Usiamo un worker singolo (leggerissimo per la memoria del telefono) caricando eng+ita
+        worker = await Tesseract.createWorker('eng+ita');
         
-        // Creiamo un motore multi-lingua simultaneo (Inglese, Italiano, Rumeno, Francese, Spagnolo)
-        // Questo permette di riconoscere le varianti di "Data di nascita" in tutto il mondo
-        scheduler = Tesseract.createScheduler();
-        const worker1 = await Tesseract.createWorker('ita+eng');
-        scheduler.addWorker(worker1);
-
+        await worker.setParameters({
+            tessedit_char_whitelist: '0123456789/.- ',
+        });
+        
         pronto = true;
-        statusBlock.innerText = "IA PRONTA";
-        subText.innerText = "Mostra il documento liberamente all'interno del riquadro";
+        statusBlock.innerText = "PRONTO AL VARCO";
+        subText.innerText = "Centra la zona della data nel riquadro";
         loopScansione();
+    }
+
+    function playSuono(tipo) {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            if (tipo === 'ok') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+            }
+        } catch(e) {}
     }
 
     async function startCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: false
             });
             video.srcObject = stream;
@@ -112,17 +130,14 @@ HTML_TEMPLATE = """
         }
     }
 
-    function preProcessImage(ctx, width, height) {
-        let imgData = ctx.getImageData(0, 0, width, height);
-        let d = imgData.data;
+    function applicaFiltroNitidezza(imageData) {
+        let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
-            // Formula di luminanza avanzata per eliminare i riflessi olografici dei documenti di plastica
-            let gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-            // Filtro contrasto dinamico adattivo
-            let binarizzato = (gray > 128) ? 255 : 0;
-            d[i] = d[i+1] = d[i+2] = binarizzato;
+            let v = (0.2126 * d[i] + 0.7152 * d[i+1] + 0.0722 * d[i+2]);
+            v = (v > 120) ? 255 : 0;
+            d[i] = d[i+1] = d[i+2] = v;
         }
-        ctx.putImageData(imgData, 0, 0);
+        return imageData;
     }
 
     async function loopScansione() {
@@ -132,99 +147,80 @@ HTML_TEMPLATE = """
         }
 
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        preProcessImage(ctx, canvas.width, canvas.height);
+        let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        ctx.putImageData(applicaFiltroNitidezza(imgData), 0, 0);
         
         try {
-            // Elaborazione parallela ultra-veloce
-            const { data: { text } } = await scheduler.addJob('recognize', canvas);
-            let bloccoTesto = text.toUpperCase();
-
-            // 🧠 LOGICA COGNITIVA: Estraiamo TUTTE le date presenti nel documento (Nascita, Rilascio, Scadenza)
-            let regexDate = /(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g;
-            let dateTrovate = bloccoTesto.match(regexDate);
-
-            if (dateTrovate) {
-                let dataNascitaIdentificata = null;
-                let etaCalcolata = null;
-
-                for (let dataGrezza of dateTrovate) {
-                    let parti = dataGrezza.split(/[\/\-\.]/);
-                    let g = parseInt(parti[0]);
-                    let m = parseInt(parti[1]);
-                    let aStr = parti[2];
-                    let a = parseInt(aStr);
-
-                    if (aStr.length === 2) {
-                        let annoCorto = new Date().getFullYear() % 100;
-                        a = (a <= annoCorto) ? (2000 + a) : (1900 + a);
+            const { data: { text } } = await worker.recognize(canvas);
+            
+            // Estrae qualsiasi blocco numerico formato data (punti, barre o trattini)
+            let matches = text.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
+            
+            if (matches) {
+                for (let matchStr of matches) {
+                    let parti = matchStr.split(/[\/\-\.]/);
+                    let giorno = parseInt(parti[0]);
+                    let mese = parseInt(parti[1]);
+                    let annoStr = parti[2];
+                    let anno = parseInt(annoStr);
+                    
+                    if (annoStr.length === 2) {
+                        let annoCorrenteCorto = new Date().getFullYear() % 100;
+                        anno = (anno <= annoCorrenteCorto) ? (2000 + anno) : (1900 + anno);
                     }
-
-                    if (g >= 1 && g <= 31 && m >= 1 && m <= 12) {
+                    
+                    if (giorno >= 1 && giorno <= 31 && mese >= 1 && mese <= 12) {
                         let oggi = new Date();
-                        let eta = oggi.getFullYear() - a;
-                        if (oggi.getMonth() + 1 < m || (oggi.getMonth() + 1 === m && oggi.getDate() < g)) {
+                        let eta = oggi.getFullYear() - anno;
+                        if (oggi.getMonth() + 1 < mese || (oggi.getMonth() + 1 === mese && oggi.getDate() < giorno)) {
                             eta--;
                         }
-
-                        // L'INTELLIGENZA STA QUI: In un locale notturno, l'unica data valida sul documento
-                        // deve generare un'età coerente tra i 16 e i 75 anni. 
-                        // Le date di scadenza (es. 2036 -> età negativa) o rilascio (es. 2026 -> 0 anni) vengono segate istantaneamente.
+                        
+                        // FILTRO SEMANTICO: Accetta solo date che generano un'età coerente da locale (16-75 anni)
+                        // Taglia fuori in automatico le date di scadenza (es: 2036) o emissione (es: 2026)
                         if (eta >= 16 && eta <= 75) {
-                            dataNascitaIdentificata = `${g.toString().padStart(2,'0')}/${m.toString().padStart(2,'0')}/${a}`;
-                            etaCalcolata = eta;
-                            break; // Trovata la data corretta, usciamo dal ciclo!
+                            bloccato = true;
+                            let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
+                            
+                            fetch('/salva_scansione', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ data: dataValida })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.esito === 'MAGGIORENNE') {
+                                    statusBlock.className = 'status-box maggiorenne';
+                                    statusBlock.innerText = '✔️ PASSA';
+                                } else {
+                                    statusBlock.className = 'status-box minorenne';
+                                    statusBlock.innerText = '❌ MINORENNE';
+                                }
+                                subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${data.eta} anni</b>`;
+                                playSuono(data.esito === 'MAGGIORENNE' ? 'ok' : 'no');
+
+                                setTimeout(() => {
+                                    statusBlock.className = 'status-box';
+                                    statusBlock.innerText = 'PRONTO AL VARCO';
+                                    subText.innerText = 'Centra la zona della data nel riquadro';
+                                    bloccato = false;
+                                    loopScansione();
+                                }, 1800);
+                            }).catch(() => { bloccato = false; loopScansione(); });
+                            return;
                         }
                     }
-                }
-
-                if (dataNascitaIdentificata) {
-                    bloccato = true;
-                    
-                    fetch('/salva_scansione', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ data: dataNascitaIdentificata })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.esito === 'MAGGIORENNE') {
-                            statusBlock.className = 'status-box maggiorenne';
-                            statusBlock.innerText = '✔️ PASSA';
-                        } else {
-                            statusBlock.className = 'status-box minorenne';
-                            statusBlock.innerText = '❌ ALT: MINORENNE';
-                        }
-                        subText.innerHTML = `Data rilevata: <b>${dataNascitaIdentificata}</b><br>Età confermata: <b>${data.eta} anni</b>`;
-                        
-                        // Segnale acustico
-                        try {
-                            let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                            let osc = audioCtx.createOscillator();
-                            osc.frequency.setValueAtTime(data.esito === 'MAGGIORENNE' ? 880 : 220, audioCtx.currentTime);
-                            osc.connect(audioCtx.destination);
-                            osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-                        } catch(ae) {}
-
-                        setTimeout(() => {
-                            statusBlock.className = 'status-box';
-                            statusBlock.innerText = 'PRONTO AL VARCO';
-                            subText.innerText = 'Mostra il documento liberamente';
-                            bloccato = false;
-                            loopScansione();
-                        }, 1800);
-                    }).catch(() => { bloccato = false; loopScansione(); });
-                    return;
                 }
             }
         } catch (e) {
-            console.error("Errore IA:", e);
+            console.error(e);
         }
 
-        setTimeout(loopScansione, 30);
+        setTimeout(loopScansione, 80);
     }
 
     startCamera();
-    inizializzaAI();
+    inizializzaOCR();
 </script>
 
 </body>
