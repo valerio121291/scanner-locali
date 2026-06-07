@@ -11,38 +11,25 @@ def inizializza_memoria():
     if not os.path.exists(MEMORIA_FILE):
         with open(MEMORIA_FILE, 'w') as f:
             json.dump({
-                "uomini_dentro": 0,
-                "donne_dentro": 0,
-                "scansioni_totali": 0, 
-                "maggiorenni": 0, 
-                "minorenni": 0, 
+                "totale_entrati": 0,
                 "cronologia": []
             }, f, indent=4)
 
-def salva_in_memoria(esito, eta, data_nascita, sesso, nome, cognome):
+def salva_in_memoria(esito, eta, data_nascita, sesso_selezionato):
     try:
         inizializza_memoria()
         with open(MEMORIA_FILE, 'r+') as f:
             data = json.load(f)
-            data["scansioni_totali"] += 1
             
             if esito == "PASSA":
-                if sesso == "M":
-                    data["uomini_dentro"] = data.get("uomini_dentro", 0) + 1
-                else:
-                    data["donne_dentro"] = data.get("donne_dentro", 0) + 1
-                data["maggiorenni"] += 1
-            else:
-                data["minorenni"] += 1
+                data["totale_entrati"] += 1
             
             data["cronologia"].append({
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "esito": esito,
                 "eta": eta,
                 "data_nascita": data_nascita,
-                "sesso": sesso,
-                "nome": nome,
-                "cognome": cognome
+                "sesso_serata": sesso_selezionato
             })
             f.seek(0)
             json.dump(data, f, indent=4)
@@ -58,31 +45,28 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Madre Identity v18</title>
+    <title>Madre Matrix v19</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #050505; color: white; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 420px; width: 100%; text-align: center; }
         
-        /* Dashboard superiore */
-        .dashboard { display: flex; justify-content: space-between; background: #111; padding: 12px; border-radius: 16px; margin-bottom: 12px; border: 1px solid #222; }
-        .stat { flex: 1; text-align: center; }
-        .stat-val { font-size: 1.6rem; font-weight: bold; color: #fff; }
-        .stat-lbl { font-size: 0.75rem; color: #71717a; text-transform: uppercase; margin-top: 2px; }
-        .stat-val.uomini { color: #3b82f6; }
-        .stat-val.donne { color: #ec4899; }
+        /* Contatore superiore semplificato */
+        .dashboard { background: #111; padding: 15px; border-radius: 16px; margin-bottom: 12px; border: 1px solid #222; }
+        .counter-val { font-size: 2rem; font-weight: bold; color: #00ffcc; }
+        .counter-lbl { font-size: 0.8rem; color: #71717a; text-transform: uppercase; margin-top: 2px; font-weight: bold; }
         
-        /* Box Dati Anagrafici Rilevati */
-        .identity-box { background: #0f172a; border: 1px solid #1e293b; padding: 8px 12px; border-radius: 12px; margin-bottom: 12px; text-align: left; font-size: 0.9rem; display: flex; justify-content: space-between; }
-        .id-field { color: #94a3b8; }
-        .id-val { font-weight: bold; color: #f8fafc; text-transform: uppercase; }
+        /* Pannello Regia Selezione Sessi Indipendenti */
+        .config-panel { background: #14141b; padding: 12px 15px; border-radius: 14px; margin-bottom: 12px; border: 1px solid #1e1e2d; text-align: left; }
+        .config-title { font-size: 0.8rem; color: #00ffcc; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; }
+        .row-select { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .row-select:last-child { margin-bottom: 0; }
+        .row-select label { font-size: 0.95rem; font-weight: 600; color: #e4e4e7; }
+        .row-select select { background: #09090b; color: #fff; border: 1px solid #3f3f46; padding: 6px 10px; border-radius: 8px; font-weight: bold; font-size: 0.95rem; outline: none; }
+        .select-m { color: #3b82f6 !important; border-color: #1d4ed8 !important; }
+        .select-f { color: #ec4899 !important; border-color: #be185d !important; }
 
-        /* Menu selezione limite serata */
-        .config-box { background: #14141b; padding: 10px 15px; border-radius: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #1e1e2d; }
-        .config-box label { font-size: 0.9rem; font-weight: 600; color: #a1a1aa; }
-        .config-box select { background: #09090b; color: #00ffcc; border: 1px solid #3f3f46; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 1rem; outline: none; }
-
-        .video-container { position: relative; width: 100%; height: 200px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 2px solid #333; background: #000; }
+        .video-container { position: relative; width: 100%; height: 210px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 2px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
         .mirino { position: absolute; top: 10%; left: 5%; width: 90%; height: 80%; border: 3px solid #00ffcc; border-radius: 14px; pointer-events: none; box-shadow: 0 0 20px rgba(0,255,204,0.15); box-sizing: border-box; z-index: 10; }
         
@@ -96,33 +80,33 @@ HTML_TEMPLATE = """
 
 <div class="container">
     <div class="dashboard">
-        <div class="stat" style="border-right: 1px solid #222;">
-            <div id="count-uomini" class="stat-val uomini">0</div>
-            <div class="stat-lbl">♂️ Uomini</div>
-        </div>
-        <div class="stat" style="border-right: 1px solid #222;">
-            <div id="count-donne" class="stat-val donne">0</div>
-            <div class="stat-lbl">♀️ Donne</div>
-        </div>
-        <div class="stat">
-            <div id="count-totale" class="stat-val">0</div>
-            <div class="stat-lbl">Tot Entrati</div>
-        </div>
+        <div id="count-totale" class="counter-val">0</div>
+        <div class="counter-lbl">Persone Entrate Stasera</div>
     </div>
 
-    <div class="identity-box">
-        <div><span class="id-field">Cognome:</span> <span id="id-cognome" class="id-val">---</span></div>
-        <div><span class="id-field">Nome:</span> <span id="id-nome" class="id-val">---</span></div>
-    </div>
-
-    <div class="config-box">
-        <label for="limite-eta">Soglia Ingresso Serata:</label>
-        <select id="limite-eta">
-            <option value="16">Filtro Over 16</option>
-            <option value="18" selected>Filtro Over 18</option>
-            <option value="20">Filtro Over 20</option>
-            <option value="21">Filtro Over 21</option>
-        </select>
+    <div class="config-panel">
+        <div class="config-title">Configurazione Limiti Serata</div>
+        <div class="row-select">
+            <label>♂️ Limite Età Uomini:</label>
+            <select id="limite-m" class="select-m">
+                <option value="16">Over 16</option>
+                <option value="18" selected>Over 18</option>
+                <option value="20">Over 20</option>
+                <option value="21">Over 21</option>
+                <option value="23">Over 23</option>
+                <option value="25">Over 25</option>
+            </select>
+        </div>
+        <div class="row-select">
+            <label>♀️ Limite Età Donne:</label>
+            <select id="limite-f" class="select-f">
+                <option value="16">Over 16</option>
+                <option value="18" selected>Over 18</option>
+                <option value="20">Over 20</option>
+                <option value="21">Over 21</option>
+                <option value="23">Over 23</option>
+            </select>
+        </div>
     </div>
 
     <div class="video-container">
@@ -131,7 +115,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div id="status-block" class="status-box">AVVIO...</div>
-    <div id="sub-text">Inizializzazione scanner...</div>
+    <div id="sub-text">Configurazione filtri geometrici...</div>
 </div>
 
 <canvas id="processingCanvas" style="display:none;" width="640" height="480"></canvas>
@@ -141,28 +125,25 @@ HTML_TEMPLATE = """
     const processingCanvas = document.getElementById('processingCanvas');
     const statusBlock = document.getElementById('status-block');
     const subText = document.getElementById('sub-text');
-    const limiteSelect = document.getElementById('limite-eta');
+    const limiteMSelect = document.getElementById('limite-m');
+    const limiteFSelect = document.getElementById('limite-f');
     const pCtx = processingCanvas.getContext('2d', { alpha: false });
     
-    // Database dei Nomi Italiani per la determinazione del sesso tramite Anagrafica sussidiaria
-    const NOMI_MASCHILI = ['MARCO','ALESSANDRO','GIUSEPPE','FRANCESCO','GIOVANNI','ROBERTO','STEFANO','ANDREA','LUCA','MATTEO','DAVIDE','VALERIO','ANTONIO','MICHELE','LORENZO','FEDERICO','EDOARDO','SIMONE','CHRISTIAN','ALBERTO'];
-    const NOMI_FEMMINILI = ['MARIA','ANNA','GIULIA','FRANCESCA','CHIARA','SARA','SILVIA','ELENA','GIORGIA','MARTINA','ALICE','FEDERICA','ROBERTA','ELISA','ALESSIA','VALENTINA','EMMA','AURORA','MATILDE','SOFIA'];
-
     let worker = null;
     let bloccato = false;
     let pronto = false;
 
     async function inizializzaOCR() {
         worker = await Tesseract.createWorker('eng');
-        // Whitelist completa per catturare stringhe alfanumeriche, date e lettere di genere
+        // Filtriamo alla fonte tenendo solo cifre e separatori per una velocità stratosferica
         await worker.setParameters({
-            tessedit_char_whitelist: '0123456789/.- abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+            tessedit_char_whitelist: '0123456789/.- ',
             tessedit_pageseg_mode: '11', 
         });
         
         pronto = true;
         statusBlock.innerText = "PRONTO AL VARCO";
-        subText.innerText = "Inquadra il fronte del documento";
+        subText.innerText = "Inquadra la data di nascita";
         loopScansione();
     }
 
@@ -183,7 +164,8 @@ HTML_TEMPLATE = """
         let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
             let gray = (0.3 * d[i] + 0.59 * d[i+1] + 0.11 * d[i+2]);
-            let b = (gray > 115) ? 255 : 0;
+            // Soglia netta per sbiancare lo sfondo e isolare i blocchi numerici neri della data
+            let b = (gray > 125) ? 255 : 0;
             d[i] = d[i+1] = d[i+2] = b;
         }
         return imageData;
@@ -205,50 +187,28 @@ HTML_TEMPLATE = """
         try {
             const { data: { text } } = await worker.recognize(processingCanvas);
             
-            // 1. Isola le date presenti
-            let testoPulito = text.replace(/[^0-9\/\-\. ]/g, ' ');
-            let matches = testoPulito.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
+            // 🔥 NUOVA LOGICA: Pulizia Radicale Isolata
+            // Rimuoviamo ogni residuo alfabetico spurio o spazio eccessivo prima di dare in pasto i dati alla matrice
+            let stringaNumericaPura = text.replace(/[^0-9\/\-\.]/g, ' ');
             
-            if (matches) {
-                for (let matchStr of matches) {
-                    let separators = matchStr.match(/[\/\-\.]/g);
-                    if (separators && separators[0] !== separators[1]) continue;
-
-                    let parti = matchStr.split(/[\/\-\.]/);
+            // Intercettiamo solo strutture a lunghezza fissa coerenti (2 cifre, separatore, 2 cifre, separatore, 2-4 cifre)
+            let dataMatches = stringaNumericaPura.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
+            
+            if (dataMatches) {
+                for (let bloccoData of dataMatches) {
+                    let parti = bloccoData.split(/[\/\-\.]/);
                     let giornoGrezzo = parseInt(parti[0]);
                     let mese = parseInt(parti[1]);
                     let annoStr = parti[2];
                     let anno = parseInt(annoStr);
                     
-                    let sesso = "M"; 
                     let giorno = giornoGrezzo;
-
-                    // A. Riconoscimento Genere da algoritmo matematico Codice Fiscale
+                    // Se il giorno è maggiore di 40, applichiamo la decodifica implicita per sapere se la data apparteneva a una donna (Codice Fiscale)
+                    let sessoRilevato = "M";
                     if (giornoGrezzo > 40 && giornoGrezzo <= 71) {
-                        sesso = "F";
+                        sessoRilevato = "F";
                         giorno = giornoGrezzo - 40;
                     }
-                    
-                    // B. Riconoscimento Genere da lettere esplicite sul documento M / F
-                    let paroleDoc = text.toUpperCase().split(/[^A-Z]/);
-                    if (paroleDoc.includes('F')) sesso = "F";
-                    if (paroleDoc.includes('M')) sesso = "M";
-
-                    // C. Riconoscimento Genere Cross-Check da Nome Proprio (Anagrafica)
-                    let nomeRilevato = "---";
-                    let cognomeRilevato = "---";
-                    
-                    for (let parola of paroleDoc) {
-                        if (parola.length > 2) {
-                            if (NOMI_MASCHILI.includes(parola)) { sesso = "M"; nomeRilevato = parola; break; }
-                            if (NOMI_FEMMINILI.includes(parola)) { sesso = "F"; nomeRilevato = parola; break; }
-                        }
-                    }
-
-                    // Tentativo di estrazione del primo blocco di testo utile per valorizzare il cognome a schermo
-                    let righeFiltrate = text.toUpperCase().split('\\n').map(r => r.trim()).filter(r => r.length > 3 && !r.match(/[0-9]/));
-                    if (righeFiltrate.length > 0) cognomeRilevato = righeFiltrate[0].split(' ')[0];
-                    if (righeFiltrate.length > 1 && nomeRilevato === "---") nomeRilevato = righeFiltrate[1].split(' ')[0];
 
                     if (annoStr.length === 2) {
                         let annoCorrenteCorto = new Date().getFullYear() % 100;
@@ -262,39 +222,36 @@ HTML_TEMPLATE = """
                             eta--;
                         }
                         
-                        // Finestra generazionale anagrafica
+                        // Finestra di tolleranza anagrafica biologica
                         if (eta >= 14 && eta <= 75) {
                             bloccato = true;
                             let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
-                            let limiteImpostato = parseInt(limiteSelect.value);
-                            let esitoFinale = (eta >= limiteImpostato) ? "PASSA" : "RESPINTO";
-
-                            // Aggiorna subito i campi d'identità visivi sulla regia
-                            document.getElementById('id-nome').innerText = nomeRilevato;
-                            document.getElementById('id-cognome').innerText = cognomeRilevato;
+                            
+                            // Recupera le soglie separate impostate dalla regia per Maschi e Donne
+                            let sogliaM = parseInt(limiteMSelect.value);
+                            let sogliaF = parseInt(limiteFSelect.value);
+                            
+                            // Applica il filtro incrociato a seconda del sesso calcolato dalla data
+                            let limiteSelezionato = (sessoRilevato === "M") ? sogliaM : sogliaF;
+                            let esitoFinale = (eta >= limiteSelezionato) ? "PASSA" : "RESPINTO";
 
                             fetch('/salva_scansione', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ 
-                                    data: dataValida, sesso: sesso, esito: esitoFinale, eta: eta,
-                                    nome: nomeRilevato, cognome: cognomeRilevato
-                                })
+                                body: JSON.stringify({ data: dataValida, esito: esitoFinale, eta: eta, sesso: sessoRilevato })
                             })
                             .then(res => res.json())
                             .then(data => {
-                                document.getElementById('count-uomini').innerText = data.uomini;
-                                document.getElementById('count-donne').innerText = data.donne;
-                                document.getElementById('count-totale').innerText = data.uomini + data.donne;
+                                document.getElementById('count-totale').innerText = data.totale;
 
                                 if (esitoFinale === 'PASSA') {
                                     statusBlock.className = 'status-box maggiorenne';
-                                    statusBlock.innerText = `✔️ ENTRA (${sesso})`;
+                                    statusBlock.innerText = `✔️ ENTRA (${sessoRilevato})`;
                                 } else {
                                     statusBlock.className = 'status-box minorenne';
-                                    statusBlock.innerText = `❌ STOP (${sesso})`;
+                                    statusBlock.innerText = `❌ BLOCCO (${sessoRilevato})`;
                                 }
-                                subText.innerHTML = `Nato: <b>${dataValida}</b> — Età: <b>${eta} anni</b>`;
+                                subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${eta} anni</b> (Soglia: Over ${limiteSelezionato})`;
                                 
                                 try {
                                     let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -307,12 +264,10 @@ HTML_TEMPLATE = """
                                 setTimeout(() => {
                                     statusBlock.className = 'status-box';
                                     statusBlock.innerText = 'PRONTO AL VARCO';
-                                    subText.innerText = 'Inquadra il fronte del documento';
-                                    document.getElementById('id-nome').innerText = "---";
-                                    document.getElementById('id-cognome').innerText = "---";
+                                    subText.innerText = 'Inquadra la data di nascita';
                                     bloccato = false;
                                     loopScansione();
-                                }, 1800);
+                                }, 1500);
                             }).catch(() => { bloccato = false; loopScansione(); });
                             return;
                         }
@@ -342,18 +297,15 @@ def salva_scansione():
         return jsonify({'status': 'error'})
 
     data_str = req_data['data']
-    sesso = req_data['sesso']
     esito = req_data['esito']
     eta = req_data['eta']
-    nome = req_data.get('nome', '---')
-    cognome = req_data.get('cognome', '---')
+    sesso = req_data['sesso']
     
-    stato_memoria = salva_in_memoria(esito, eta, data_str, sesso, nome, cognome)
+    stato_memoria = salva_in_memoria(esito, eta, data_str, sesso)
     
     return jsonify({
         'status': 'success', 
-        'uomini': stato_memoria.get("uomini_dentro", 0), 
-        'donne': stato_memoria.get("donne_dentro", 0)
+        'totale': stato_memoria.get("totale_entrati", 0)
     })
 
 if __name__ == '__main__':
