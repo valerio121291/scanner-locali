@@ -2,7 +2,7 @@ from flask import Flask, render_template_string, request, jsonify
 from datetime import datetime
 import pytesseract
 import re
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 import io
 import base64
 import json
@@ -10,7 +10,6 @@ import os
 
 app = Flask(__name__)
 
-# File di memoria per l'IA "Madre" (nella cartella temporanea del server)
 MEMORIA_FILE = "/tmp/memoria_madre.json"
 
 def inizializza_memoria():
@@ -42,8 +41,10 @@ def salva_in_memoria(esito, eta, data_nascita):
         print(f"Errore salvataggio memoria: {e}")
 
 def calcola_eta(data_nascita_str):
+    # Pulisce la stringa tenendo solo numeri e separatori
+    data_pulita = re.sub(r'[^0-9\/\-\.]', '', data_nascita_str)
     pattern = r'(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})'
-    match = re.search(pattern, data_nascita_str)
+    match = re.search(pattern, data_pulita)
     if not match:
         return None
     giorno, mese, anno = map(int, match.groups())
@@ -67,7 +68,7 @@ HTML_TEMPLATE = """
         .container { max-width: 450px; width: 100%; text-align: center; }
         .video-container { position: relative; width: 100%; max-width: 360px; height: 240px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 3px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .mirino { position: absolute; top: 15%; left: 5%; width: 90%; height: 70%; border: 3px dashed rgba(255,255,255,0.6); border-radius: 15px; pointer-events: none; }
+        .mirino { position: absolute; top: 25%; left: 5%; width: 90%; height: 50%; border: 3px dashed rgba(255,255,255,0.7); border-radius: 10px; pointer-events: none; }
         .status-circle { width: 140px; height: 140px; border-radius: 50%; margin: 25px auto; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; transition: all 0.4s ease; background-color: #222; border: 4px solid #333; }
         .maggiorenne { background-color: #2eb85c; border-color: #1f7a3e; box-shadow: 0 0 35px #2eb85c; }
         .minorenne { background-color: #e55353; border-color: #a33939; box-shadow: 0 0 35px #e55353; }
@@ -78,7 +79,7 @@ HTML_TEMPLATE = """
 
 <div class="container">
     <h2 style="margin-bottom: 5px; color: #fff;">Scanner Cloud</h2>
-    <p id="sub" style="color: #666; margin-top: 0; font-size: 0.95rem;">Inquadra nitidamente la data di nascita</p>
+    <p id="sub" style="color: #aaa; margin-top: 0; font-size: 0.95rem;">Avvicina la DATA DI NASCITA dentro il mirino</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
@@ -86,10 +87,10 @@ HTML_TEMPLATE = """
     </div>
 
     <div id="circle" class="status-circle">📸</div>
-    <div id="info">Pronto alla scansione...</div>
+    <div id="info">Inquadra la data...</div>
 </div>
 
-<canvas id="canvas" style="display:none;" width="640" height="480"></canvas>
+<canvas id="canvas" style="display:none;" width="800" height="600"></canvas>
 
 <script>
     const video = document.getElementById('video');
@@ -102,29 +103,25 @@ HTML_TEMPLATE = """
 
     function playSuono(tipo) {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
         if (tipo === 'ok') {
-            let osc = audioCtx.createOscillator();
-            let gain = audioCtx.createGain();
             osc.type = 'sine'; osc.frequency.setValueAtTime(880, audioCtx.currentTime);
             gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
             osc.connect(gain); gain.connect(audioCtx.destination);
             osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-        } else if (tipo === 'no') {
-            [0, 0.2].forEach(delay => {
-                let osc = audioCtx.createOscillator();
-                let gain = audioCtx.createGain();
-                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, audioCtx.currentTime + delay);
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime + delay);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(audioCtx.currentTime + delay); osc.stop(audioCtx.currentTime + delay + 0.15);
-            });
+        } else {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.25);
         }
     }
 
     async function startCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: false
             });
             video.srcObject = stream;
@@ -137,8 +134,9 @@ HTML_TEMPLATE = """
     function catturaEInvia() {
         if (bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
+        // Cattura ad una risoluzione maggiore per permettere a Tesseract di leggere meglio
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.5); // Compressione ottimale per il cloud
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         
         fetch('/scan_frame', {
             method: 'POST',
@@ -152,26 +150,26 @@ HTML_TEMPLATE = """
                 
                 if (data.esito === 'MAGGIORENNE') {
                     circle.className = 'status-circle maggiorenne'; circle.innerText = '✔️';
-                    info.innerHTML = `<span style="color:#2eb85c">MAGGIORENNE</span><br><span style="font-size:0.9rem">${data.eta} anni</span>`;
+                    info.innerHTML = `<span style="color:#2eb85c">MAGGIORENNE</span><br><span style="font-size:1.1rem">${data.eta} anni (${data.data_rilevata})</span>`;
                     playSuono('ok');
                 } else {
                     circle.className = 'status-circle minorenne'; circle.innerText = '❌';
-                    info.innerHTML = `<span style="color:#e55353">MINORENNE</span><br><span style="font-size:0.9rem">${data.eta} anni</span>`;
+                    info.innerHTML = `<span style="color:#e55353">MINORENNE</span><br><span style="font-size:1.1rem">${data.eta} anni (${data.data_rilevata})</span>`;
                     playSuono('no');
                 }
 
                 setTimeout(() => {
                     circle.className = 'status-circle'; circle.innerText = '📸';
-                    info.innerText = 'Pronto alla scansione...';
+                    info.innerText = 'Inquadra la data...';
                     bloccato = false;
-                }, 3000);
+                }, 3500);
             }
         })
         .catch(err => console.log(err));
     }
 
     startCamera();
-    setInterval(catturaEInvia, 1000); // Analisi ogni secondo
+    setInterval(catturaEInvia, 1000); // Invia un frame ogni secondo
 </script>
 
 </body>
@@ -192,15 +190,24 @@ def scan_frame():
     image_bytes = base64.b64decode(encoded)
     image = Image.open(io.BytesIO(image_bytes))
 
-    # Analisi OCR veloce tramite Tesseract (Nativo del server)
+    # --- PRE-ELABORAZIONE IMMAGINE PER L'OCR ---
+    # Convertiamo in scala di grigi e aumentiamo il contrasto per rendere i numeri nettissimi
+    image = image.convert('L')
+    enhancer = ImageEnhance.Contrast(image)
+    image = enhancer.enhance(2.0)
+    
     try:
-        testo_estratto = pytesseract.image_to_string(image)
+        # Configurazione Tesseract: gli diciamo di cercare solo cifre e caratteri di data
+        custom_config = r'--psm 11 -c tessedit_char_whitelist=0123456789/.-'
+        testo_estratto = pytesseract.image_to_string(image, config=custom_config)
+        
+        # Cerca formati data tipo 15/08/2002 o 15-08-2002 o 15.08.2002
         date_trovate = re.findall(r'\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}', testo_estratto)
 
         if date_trovate:
             for data_str in date_trovate:
                 eta = calcola_eta(data_str)
-                if eta is not None:
+                if eta is not None and 1 < eta < 120: # Filtro per evitare date assurde lette male
                     esito = "MAGGIORENNE" if eta >= 18 else "MINORENNE"
                     salva_in_memoria(esito, eta, data_str)
                     return jsonify({'status': 'success', 'esito': esito, 'eta': eta, 'data_rilevata': data_str})
