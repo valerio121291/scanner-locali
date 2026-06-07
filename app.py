@@ -45,18 +45,16 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Madre Matrix v19</title>
+    <title>Madre Anti-Ghosting v20</title>
     <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #050505; color: white; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 420px; width: 100%; text-align: center; }
         
-        /* Contatore superiore semplificato */
         .dashboard { background: #111; padding: 15px; border-radius: 16px; margin-bottom: 12px; border: 1px solid #222; }
         .counter-val { font-size: 2rem; font-weight: bold; color: #00ffcc; }
         .counter-lbl { font-size: 0.8rem; color: #71717a; text-transform: uppercase; margin-top: 2px; font-weight: bold; }
         
-        /* Pannello Regia Selezione Sessi Indipendenti */
         .config-panel { background: #14141b; padding: 12px 15px; border-radius: 14px; margin-bottom: 12px; border: 1px solid #1e1e2d; text-align: left; }
         .config-title { font-size: 0.8rem; color: #00ffcc; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; }
         .row-select { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -115,7 +113,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div id="status-block" class="status-box">AVVIO...</div>
-    <div id="sub-text">Configurazione filtri geometrici...</div>
+    <div id="sub-text">Filtro doppia conferma attivo...</div>
 </div>
 
 <canvas id="processingCanvas" style="display:none;" width="640" height="480"></canvas>
@@ -133,9 +131,13 @@ HTML_TEMPLATE = """
     let bloccato = false;
     let pronto = false;
 
+    // 🔥 VARIABILI DI DEBOUNCING PER EVITARE ABREAZIONI OTTICHE (GHOSTING)
+    let ultimaDataLetta = "";
+    let conteggioConferme = 0;
+    const SOGLIA_CONFERME_STABILI = 2; // Il documento deve mostrare la STESSA identica data per almeno 2 frame consecutivi
+
     async function inizializzaOCR() {
         worker = await Tesseract.createWorker('eng');
-        // Filtriamo alla fonte tenendo solo cifre e separatori per una velocità stratosferica
         await worker.setParameters({
             tessedit_char_whitelist: '0123456789/.- ',
             tessedit_pageseg_mode: '11', 
@@ -143,7 +145,7 @@ HTML_TEMPLATE = """
         
         pronto = true;
         statusBlock.innerText = "PRONTO AL VARCO";
-        subText.innerText = "Inquadra la data di nascita";
+        subText.innerText = "Inquadra fermo il documento";
         loopScansione();
     }
 
@@ -164,8 +166,8 @@ HTML_TEMPLATE = """
         let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
             let gray = (0.3 * d[i] + 0.59 * d[i+1] + 0.11 * d[i+2]);
-            // Soglia netta per sbiancare lo sfondo e isolare i blocchi numerici neri della data
-            let b = (gray > 125) ? 255 : 0;
+            // Soglia adattiva leggermente più alta per ripulire le ombre grigie e i riflessi della plastica
+            let b = (gray > 135) ? 255 : 0;
             d[i] = d[i+1] = d[i+2] = b;
         }
         return imageData;
@@ -187,11 +189,7 @@ HTML_TEMPLATE = """
         try {
             const { data: { text } } = await worker.recognize(processingCanvas);
             
-            // 🔥 NUOVA LOGICA: Pulizia Radicale Isolata
-            // Rimuoviamo ogni residuo alfabetico spurio o spazio eccessivo prima di dare in pasto i dati alla matrice
             let stringaNumericaPura = text.replace(/[^0-9\/\-\.]/g, ' ');
-            
-            // Intercettiamo solo strutture a lunghezza fissa coerenti (2 cifre, separatore, 2 cifre, separatore, 2-4 cifre)
             let dataMatches = stringaNumericaPura.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
             
             if (dataMatches) {
@@ -203,7 +201,6 @@ HTML_TEMPLATE = """
                     let anno = parseInt(annoStr);
                     
                     let giorno = giornoGrezzo;
-                    // Se il giorno è maggiore di 40, applichiamo la decodifica implicita per sapere se la data apparteneva a una donna (Codice Fiscale)
                     let sessoRilevato = "M";
                     if (giornoGrezzo > 40 && giornoGrezzo <= 71) {
                         sessoRilevato = "F";
@@ -222,56 +219,73 @@ HTML_TEMPLATE = """
                             eta--;
                         }
                         
-                        // Finestra di tolleranza anagrafica biologica
                         if (eta >= 14 && eta <= 75) {
-                            bloccato = true;
-                            let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
+                            let dataIdentificata = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
                             
-                            // Recupera le soglie separate impostate dalla regia per Maschi e Donne
-                            let sogliaM = parseInt(limiteMSelect.value);
-                            let sogliaF = parseInt(limiteFSelect.value);
-                            
-                            // Applica il filtro incrociato a seconda del sesso calcolato dalla data
-                            let limiteSelezionato = (sessoRilevato === "M") ? sogliaM : sogliaF;
-                            let esitoFinale = (eta >= limiteSelezionato) ? "PASSA" : "RESPINTO";
+                            // 🔒 FILTRO ANTI-ERRORE DI COERENZA OTTICA:
+                            if (dataIdentificata === ultimaDataLetta) {
+                                conteggioConferme++;
+                            } else {
+                                // Se la data cambia tra un frame e l'altro (es: da 1969 a 1989), resetta e aspetta stabilità
+                                ultimaDataLetta = dataIdentificata;
+                                conteggioConferme = 1;
+                                continue; 
+                            }
 
-                            fetch('/salva_scansione', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ data: dataValida, esito: esitoFinale, eta: eta, sesso: sessoRilevato })
-                            })
-                            .then(res => res.json())
-                            .then(data => {
-                                document.getElementById('count-totale').innerText = data.totale;
+                            // Eseguiamo lo sblocco solo se il dato è fisso, leggibile e stabile per più frame consecutivi
+                            if (conteggioConferme >= SOGLIA_CONFERME_STABILI) {
+                                bloccato = true;
+                                ultimaDataLetta = ""; 
+                                conteggioConferme = 0;
 
-                                if (esitoFinale === 'PASSA') {
-                                    statusBlock.className = 'status-box maggiorenne';
-                                    statusBlock.innerText = `✔️ ENTRA (${sessoRilevato})`;
-                                } else {
-                                    statusBlock.className = 'status-box minorenne';
-                                    statusBlock.innerText = `❌ BLOCCO (${sessoRilevato})`;
-                                }
-                                subText.innerHTML = `Data: <b>${dataValida}</b> — Età: <b>${eta} anni</b> (Soglia: Over ${limiteSelezionato})`;
-                                
-                                try {
-                                    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                                    let osc = audioCtx.createOscillator();
-                                    osc.frequency.setValueAtTime(esitoFinale === 'PASSA' ? 880 : 220, audioCtx.currentTime);
-                                    osc.connect(audioCtx.destination);
-                                    osc.start(); osc.stop(audioCtx.currentTime + 0.12);
-                                } catch(e) {}
+                                let sogliaM = parseInt(limiteMSelect.value);
+                                let sogliaF = parseInt(limiteFSelect.value);
+                                let limiteSelezionato = (sessoRilevato === "M") ? sogliaM : sogliaF;
+                                let esitoFinale = (eta >= limiteSelezionato) ? "PASSA" : "RESPINTO";
 
-                                setTimeout(() => {
-                                    statusBlock.className = 'status-box';
-                                    statusBlock.innerText = 'PRONTO AL VARCO';
-                                    subText.innerText = 'Inquadra la data di nascita';
-                                    bloccato = false;
-                                    loopScansione();
-                                }, 1500);
-                            }).catch(() => { bloccato = false; loopScansione(); });
-                            return;
+                                fetch('/salva_scansione', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ data: dataIdentificata, esito: esitoFinale, eta: eta, sesso: sessoRilevato })
+                                })
+                                .then(res => res.json())
+                                .then(data => {
+                                    document.getElementById('count-totale').innerText = data.totale;
+
+                                    if (esitoFinale === 'PASSA') {
+                                        statusBlock.className = 'status-box maggiorenne';
+                                        statusBlock.innerText = `✔️ ENTRA (${sessoRilevato})`;
+                                    } else {
+                                        statusBlock.className = 'status-box minorenne';
+                                        statusBlock.innerText = `❌ BLOCCO (${sessoRilevato})`;
+                                    }
+                                    subText.innerHTML = `Data: <b>${dataIdentificata}</b> — Età: <b>${eta} anni</b> (Soglia: Over ${limiteSelezionato})`;
+                                    
+                                    try {
+                                        let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                                        let osc = audioCtx.createOscillator();
+                                        osc.frequency.setValueAtTime(esitoFinale === 'PASSA' ? 880 : 220, audioCtx.currentTime);
+                                        osc.connect(audioCtx.destination);
+                                        osc.start(); osc.stop(audioCtx.currentTime + 0.12);
+                                    } catch(e) {}
+
+                                    setTimeout(() => {
+                                        statusBlock.className = 'status-box';
+                                        statusBlock.innerText = 'PRONTO AL VARCO';
+                                        subText.innerText = 'Inquadra fermo il documento';
+                                        bloccato = false;
+                                        loopScansione();
+                                    }, 1500);
+                                }).catch(() => { bloccato = false; loopScansione(); });
+                                return;
+                            }
                         }
                     }
+                }
+            } else {
+                // Se non rileva date in questo frame, non resettare immediatamente per dare tolleranza ai micro-movimenti della mano
+                if(conteggioConferme > 0) {
+                     conteggioConferme = Math.max(0, conteggioConferme - 1);
                 }
             }
         } catch (e) { console.error(e); }
