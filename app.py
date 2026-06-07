@@ -58,7 +58,7 @@ HTML_TEMPLATE = """
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0; font-weight: 800; letter-spacing: -0.5px;">MADRE SECURE v7</h2>
+    <h2 style="margin: 0 0 5px 0; font-weight: 800; letter-spacing: -0.5px;">MADRE SECURE v7.1</h2>
     <p style="color: #666; margin: 0 0 20px 0; font-size: 0.9rem;">Filtro anti-scadenza e anti-rilascio attivo</p>
 
     <div class="video-container">
@@ -137,7 +137,6 @@ HTML_TEMPLATE = """
         return imageData;
     }
 
-    // Calcola l'età al volo sul telefono per verificare la verosimiglianza della data
     function validaEtaLogica(giorno, mese, anno) {
         if (anno <= 1930 || anno > new Date().getFullYear()) return false;
         let dataNascita = new Date(anno, mese - 1, giorno);
@@ -147,8 +146,6 @@ HTML_TEMPLATE = """
         if (m < 0 || (m === 0 && oggi.getDate() < dataNascita.getDate())) {
             eta--;
         }
-        // Una data di nascita valida all'ingresso deve generare un'età coerente (tra 14 e 90 anni)
-        // Se genera 4 o 5 anni, è palesemente una data di rilascio!
         return (eta >= 14 && eta <= 90);
     }
 
@@ -172,11 +169,10 @@ HTML_TEMPLATE = """
             const { data: { text } } = await worker.recognize(canvas);
             let testoPulito = text.toUpperCase().replace(/\s+/g, ' ');
 
-            // Troviamo tutte le possibili date presenti nel riquadro
-            let regexData globale = /(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g;
+            let regexData = /(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g;
             let match;
             
-            while ((match = regexData_globale.exec(testoPulito)) !== null) {
+            while ((match = regexData.exec(testoPulito)) !== null) {
                 let giorno = parseInt(match[1]);
                 let mese = parseInt(match[2]);
                 let annoGrezzo = match[3];
@@ -187,15 +183,10 @@ HTML_TEMPLATE = """
                     anno = (anno <= annoCorrenteCorto) ? (2000 + anno) : (1900 + anno);
                 }
                 
-                // 1. Controllo di coerenza temporale sui mesi e giorni
                 if (giorno >= 1 && giorno <= 31 && mese >= 1 && mese <= 12) {
-                    
-                    // 2. FILTRO LOGICO DI VEROSIMIGLIANZA
                     if (validaEtaLogica(giorno, mese, anno)) {
                         
-                        // 3. VERIFICA DEL CONTESTO (Evitiamo le parole vietate intorno alla data)
                         let indiceData = match.index;
-                        // Prendiamo un pezzetto di testo prima e dopo la data per studiare il contesto
                         let contestoPrecedente = testoPulito.substring(Math.max(0, indiceData - 40), indiceData);
                         let contestoSuccessivo = testoPulito.substring(indiceData, Math.min(testoPulito.length, indiceData + 40));
                         
@@ -205,7 +196,6 @@ HTML_TEMPLATE = """
                                                  contestoSuccessivo.includes("EXPIRY");
                         
                         if (!eScadenzaORilascio) {
-                            // Se la data ha superato i controlli logici e non è circondata da parole tossiche, è quella giusta!
                             bloccato = true;
                             let dataRilevata = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
                             
@@ -221,7 +211,7 @@ HTML_TEMPLATE = """
                                     statusBlock.innerText = '✔️ MAGGIORENNE';
                                     subText.innerHTML = `Data Nascita: <b>${dataRilevata}</b><br>Età: <b>${data.eta} anni</b>`;
                                     playSuono('ok');
-                               } else {
+                                } else {
                                     statusBlock.className = 'status-box minorenne';
                                     statusBlock.innerText = '❌ MINORENNE';
                                     subText.innerHTML = `Data Nascita: <b>${dataRilevata}</b><br>Età: <b>${data.eta} anni</b>`;
@@ -271,7 +261,7 @@ def salva_scansione():
     
     data_nascita = datetime(anno, mese, giorno)
     oggi = datetime.now()
-    eta = oggi.year - data_nascita.year - ((oggi.month, obesity) < (data_nascita.month, data_nascita.day)) if 'obesity' in locals() else oggi.year - data_nascita.year - ((oggi.month, oggi.day) < (data_nascita.month, data_nascita.day))
+    eta = oggi.year - data_nascita.year - ((oggi.month, oggi.day) < (data_nascita.month, data_nascita.day))
     
     esito = "MAGGIORENNE" if eta >= 18 else "MINORENNE"
     salva_in_memoria(esito, eta, data_str)
