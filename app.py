@@ -2,10 +2,6 @@ from flask import Flask, render_template_string, request, jsonify
 from datetime import datetime
 import json
 import os
-import re
-import base64
-import io
-from PIL import Image
 
 app = Flask(__name__)
 
@@ -37,7 +33,7 @@ def salva_in_memoria(esito, eta, data_nascita):
             json.dump(data, f, indent=4)
             f.truncate()
     except Exception as e:
-        print(f"Errore salvataggio memoria: {e}")
+        print(f"Errore memoria: {e}")
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -45,35 +41,36 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Scanner Madre Flash</title>
+    <title>Scanner Madre Realtime</title>
+    <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #121212; color: white; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 400px; width: 100%; text-align: center; }
-        .video-container { position: relative; width: 100%; max-width: 340px; height: 200px; margin: 0 auto; border-radius: 15px; overflow: hidden; border: 3px solid #333; background: #000; }
+        .video-container { position: relative; width: 100%; max-width: 340px; height: 220px; margin: 0 auto; border-radius: 15px; overflow: hidden; border: 3px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .mirino { position: absolute; top: 30%; left: 10%; width: 80%; height: 40%; border: 3px solid #00ffcc; border-radius: 8px; pointer-events: none; box-shadow: 0 0 10px rgba(0,255,204,0.5); }
-        .status-box { width: 100%; padding: 20px 0; border-radius: 15px; margin-top: 20px; font-size: 2rem; font-weight: bold; background-color: #1e1e1e; border: 2px solid #333; transition: all 0.2s ease; }
+        .mirino { position: absolute; top: 30%; left: 10%; width: 80%; height: 40%; border: 3px solid #00ffcc; border-radius: 8px; pointer-events: none; box-shadow: 0 0 10px rgba(0,255,204,0.4); }
+        .status-box { width: 100%; padding: 20px 0; border-radius: 15px; margin-top: 20px; font-size: 1.8rem; font-weight: bold; background-color: #1e1e1e; border: 2px solid #333; transition: all 0.2s ease; }
         .maggiorenne { background-color: #2eb85c !important; color: white; border-color: #1f7a3e; box-shadow: 0 0 25px #2eb85c; }
         .minorenne { background-color: #e55353 !important; color: white; border-color: #a33939; box-shadow: 0 0 25px #e55353; }
-        #sub-text { color: #888; font-size: 0.9rem; margin-top: 10px; }
+        #sub-text { color: #aaa; font-size: 0.9rem; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2 style="margin: 0 0 5px 0;">Madre Flash Scanner</h2>
-    <p style="color: #aaa; margin: 0 0 15px 0; font-size: 0.9rem;">Passa la data di nascita dentro il mirino verde</p>
+    <h2 style="margin: 0 0 5px 0;">Madre Live Scanner</h2>
+    <p style="color: #888; margin: 0 0 15px 0; font-size: 0.9rem;">Inquadra la DATA DI NASCITA nel rettangolo verde</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
         <div class="mirino"></div>
     </div>
 
-    <div id="status-block" class="status-box">CERCANDO DATA...</div>
-    <p id="sub-text">Tieni il documento fermo e ben illuminato</p>
+    <div id="status-block" class="status-box">AVVIO MOTORE...</div>
+    <p id="sub-text">Inizializzazione fotocamera...</p>
 </div>
 
-<canvas id="canvas" style="display:none;" width="400" height="300"></canvas>
+<canvas id="canvas" style="display:none;" width="640" height="480"></canvas>
 
 <script>
     const video = document.getElementById('video');
@@ -82,7 +79,23 @@ HTML_TEMPLATE = """
     const subText = document.getElementById('sub-text');
     const ctx = canvas.getContext('2d');
     
+    let worker = null;
     let bloccato = false;
+    let pronto = false;
+
+    // Inizializza il motore OCR sul telefono SUBITO all'apertura della pagina
+    async function inizializzaOCR() {
+        statusBlock.innerText = "CARICAMENTO CORPO...";
+        worker = await Tesseract.createWorker('ita');
+        // Diciamo all'OCR di considerare SOLO numeri e barre per essere istantaneo
+        await worker.setParameters({
+            tessedit_char_whitelist: '0123456789/.- ',
+        });
+        pronto = true;
+        statusBlock.innerText = "PRONTO: INQUADRA";
+        subText.innerText = "Avvicina la data di nascita";
+        loopScansione();
+    }
 
     function playSuono(tipo) {
         try {
@@ -104,12 +117,11 @@ HTML_TEMPLATE = """
     }
 
     async function startCamera() {
-        const vincolati = {
-            video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
-            audio: false
-        };
         try {
-            const stream = await navigator.mediaDevices.getUserMedia(vincolati);
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
             video.srcObject = stream;
         } catch (err) {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -117,50 +129,72 @@ HTML_TEMPLATE = """
         }
     }
 
-    function catturaEInvia() {
-        if (bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    async function loopScansione() {
+        if (!pronto || bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) {
+            setTimeout(loopScansione, 300);
+            return;
+        }
 
-        // Cattura a risoluzione ridotta ed ottimizzata per una trasmissione immediata
+        // Ritaglia solo la porzione centrale del mirino per velocizzare l'OCR a meno di 100ms
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.4);
         
-        fetch('/analizza_immediato', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: dataUrl })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.status === 'success' && !bloccato) {
-                bloccato = true;
+        try {
+            const { data: { text } } = await worker.recognize(canvas);
+            
+            // Cerca combinazioni tipo GG/MM/AAAA o GG-MM-AAAA
+            let match = text.match(/(\\d{2})[\\/\\-\\.](\\d{2})[\\/\\-\\.](\\d{4})/);
+            
+            if (match) {
+                let giorno = parseInt(match[1]);
+                let mese = parseInt(match[2]);
+                let anno = parseInt(match[3]);
                 
-                if (data.esito === 'MAGGIORENNE') {
-                    statusBlock.className = 'status-box maggiorenne';
-                    statusBlock.innerText = '✔️ MAGGIORENNE';
-                    subText.innerHTML = `Età: <b>${data.eta} anni</b> (${data.data})`;
-                    playSuono('ok');
-                } else {
-                    statusBlock.className = 'status-box minorenne';
-                    statusBlock.innerText = '❌ MINORENNE';
-                    subText.innerHTML = `Età: <b>${data.eta} anni</b> (${data.data})`;
-                    playSuono('no');
-                }
+                if (anno > 1930 && anno <= new Date().getFullYear() && mese >= 1 && mese <= 12 && giorno >= 1 && giorno <= 31) {
+                    bloccato = true;
+                    let dataRilevata = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
+                    
+                    // Invia al server in background per salvare i dati
+                    fetch('/salva_scansione', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ data: dataRilevata })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.esito === 'MAGGIORENNE') {
+                            statusBlock.className = 'status-box maggiorenne';
+                            statusBlock.innerText = '✔️ MAGGIORENNE';
+                            subText.innerHTML = `Età: <b>${data.eta} anni</b> (${dataRilevata})`;
+                            playSuono('ok');
+                        } else {
+                            statusBlock.className = 'status-box minorenne';
+                            statusBlock.innerText = '❌ MINORENNE';
+                            subText.innerHTML = `Età: <b>${data.eta} anni</b> (${dataRilevata})`;
+                            playSuono('no');
+                        }
 
-                // Sblocco rapido dopo 2 secondi per essere subito pronti per il cliente successivo
-                setTimeout(() => {
-                    statusBlock.className = 'status-box';
-                    statusBlock.innerText = 'CERCANDO DATA...';
-                    subText.innerText = 'Tieni il documento fermo e ben illuminato';
-                    bloccato = false;
-                }, 2000);
+                        // Sblocco immediato dopo 2 secondi per il cliente successivo
+                        setTimeout(() => {
+                            statusBlock.className = 'status-box';
+                            statusBlock.innerText = 'PRONTO: INQUADRA';
+                            subText.innerText = 'Avvicina la data di nascita';
+                            bloccato = false;
+                            loopScansione();
+                        }, 2200);
+                    });
+                    return;
+                }
             }
-        })
-        .catch(err => console.log(err));
+        } catch (e) {
+            console.error(e);
+        }
+
+        // Continua a ciclare velocemente finché non trova una data valida
+        setTimeout(loopScansione, 150);
     }
 
     startCamera();
-    // Esegue il controllo in background ogni 400 millisecondi (velocissimo!)
-    setInterval(catturaEInvia, 400);
+    inizializzaOCR();
 </script>
 
 </body>
@@ -171,41 +205,23 @@ HTML_TEMPLATE = """
 def home():
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/analizza_immediato', methods=['POST'])
-def analizza_immediato():
-    import pytesseract
+@app.route('/salva_scansione', methods=['POST'])
+def salva_scansione():
     data = request.get_json()
-    if not data or 'image' not in data:
+    if not data or 'data' not in data:
         return jsonify({'status': 'error'})
 
-    header, encoded = data['image'].split(",", 1)
-    image_bytes = base64.b64decode(encoded)
-    image = Image.open(io.BytesIO(image_bytes))
-
-    # Lettura ultra rapida via Tesseract Cloud su stringa numerica pura
-    try:
-        config_veloce = r'--psm 11 -c tessedit_char_whitelist=0123456789/.-'
-        testo = pytesseract.image_to_string(image, config=config_veloce)
-        
-        # Estrae le date nel formato classico italiano (GG/MM/AAAA)
-        date_trovate = re.findall(r'(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})', testo)
-        
-        if date_trovate:
-            giorno, mese, anno = map(int, date_trovate[0])
-            if 1930 < anno <= datetime.now().year and 1 <= mese <= 12 and 1 <= giorno <= 31:
-                data_nascita = datetime(anno, mese, giorno)
-                oggi = datetime.now()
-                eta = oggi.year - data_nascita.year - ((oggi.month, oggi.day) < (data_nascita.month, data_nascita.day))
-                
-                if 5 < eta < 100:
-                    esito = "MAGGIORENNE" if eta >= 18 else "MINORENNE"
-                    data_formattata = f"{giorno:02d}/{mese:02d}/{anno}"
-                    salva_in_memoria(esito, eta, data_formattata)
-                    return jsonify({'status': 'success', 'esito': esito, 'eta': eta, 'data': data_formattata})
-    except Exception as e:
-        print(f"Errore: {e}")
-
-    return jsonify({'status': 'searching'})
+    data_str = data['data']
+    giorno, mese, anno = map(int, data_str.split('/'))
+    
+    data_nascita = datetime(anno, mese, giorno)
+    oggi = datetime.now()
+    eta = oggi.year - data_nascita.year - ((oggi.month, oggi.day) < (data_nascita.month, data_nascita.day))
+    
+    esito = "MAGGIORENNE" if eta >= 18 else "MINORENNE"
+    salva_in_memoria(esito, eta, data_str)
+    
+    return jsonify({'status': 'success', 'esito': esito, 'eta': eta})
 
 if __name__ == '__main__':
     inizializza_memoria()
