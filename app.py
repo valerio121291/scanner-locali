@@ -84,9 +84,7 @@ HTML_TEMPLATE = """
     let pronto = false;
 
     async function inizializzaOCR() {
-        worker = await Tesseract.createWorker('eng'); // Usiamo solo inglese: è 4 volte più veloce e legge perfettamente i numeri
-        
-        // BILANCIAMENTO VELOCITÀ: Leggiamo solo cifre, barre, trattini e punti. Niente lettere!
+        worker = await Tesseract.createWorker('eng');
         await worker.setParameters({
             tessedit_char_whitelist: '0123456789/.- ',
         });
@@ -128,7 +126,6 @@ HTML_TEMPLATE = """
         }
     }
 
-    // Filtro istantaneo in scala di grigi per dare massima nitidezza ai numeri neri
     function applicaFiltroNitidezza(imageData) {
         let d = imageData.data;
         for (let i = 0; i < d.length; i += 4) {
@@ -145,15 +142,12 @@ HTML_TEMPLATE = """
             return;
         }
 
-        // Cattura l'area
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         ctx.putImageData(applicaFiltroNitidezza(imgData), 0, 0);
         
         try {
             const { data: { text } } = await worker.recognize(canvas);
-            
-            // Trova qualsiasi stringa che somigli a una data (es: 12.12.1991, 06.01.1989, 12/12/91)
             let matches = text.match(/(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{2,4})/g);
             
             if (matches) {
@@ -176,7 +170,6 @@ HTML_TEMPLATE = """
                             eta--;
                         }
                         
-                        // FILTRO LOGICO: Isola la data di nascita scartando scadenze (2036) ed emissioni (2026)
                         if (eta >= 14 && eta <= 85) {
                             bloccato = true;
                             let dataValida = `${giorno.toString().padStart(2,'0')}/${mese.toString().padStart(2,'0')}/${anno}`;
@@ -204,7 +197,7 @@ HTML_TEMPLATE = """
                                     subText.innerText = 'Centra la data nel mirino';
                                     bloccato = false;
                                     loopScansione();
-                                }, 1500); // 1.5 secondi di reset per andare a nastro
+                                }, 1500);
                             }).catch(() => { bloccato = false; loopScansione(); });
                             return;
                         }
@@ -215,7 +208,7 @@ HTML_TEMPLATE = """
             console.error(e);
         }
 
-        setTimeout(loopScansione, 40); // Frequenza di campionamento quasi istantanea
+        setTimeout(loopScansione, 40);
     }
 
     startCamera();
@@ -225,6 +218,10 @@ HTML_TEMPLATE = """
 </body>
 </html>
 """
+
+@app.route('/')
+def home():
+    return render_template_string(HTML_TEMPLATE)
 
 @app.route('/salva_scansione', methods=['POST'])
 def salva_scansione():
