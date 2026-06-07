@@ -1,8 +1,9 @@
 from flask import Flask, render_template_string, request, jsonify
 from datetime import datetime
 import pytesseract
+import zxingcpp
 import re
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance
 import io
 import base64
 import json
@@ -41,7 +42,6 @@ def salva_in_memoria(esito, eta, data_nascita):
         print(f"Errore salvataggio memoria: {e}")
 
 def calcola_eta(data_nascita_str):
-    # Pulisce la stringa tenendo solo numeri e separatori
     data_pulita = re.sub(r'[^0-9\/\-\.]', '', data_nascita_str)
     pattern = r'(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})'
     match = re.search(pattern, data_pulita)
@@ -56,19 +56,46 @@ def calcola_eta(data_nascita_str):
     except ValueError:
         return None
 
+def estrai_data_da_barcode(testo_barcode):
+    # Cerca una data nel formato standard (DD/MM/YYYY o simili) dentro il barcode
+    date_trovate = re.findall(r'\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}', testo_barcode)
+    if date_trovate:
+        return date_trovate[0]
+    
+    # Se è il formato del codice fiscale sul retro della tessera sanitaria (es. 15B08 per anno/mese/giorno)
+    # Spesso nel grande codice a barre (Code 39/128) del retro c'è la stringa pulita o la data.
+    # Facciamo un controllo generico su sequenze di 8 numeri consecutivi (es: YYYYMMDD o DDMMYYYY)
+    numeri_consecutivi = re.findall(r'\d{8}', testo_barcode)
+    for seq in numeri_consecutivi:
+        # Tenta formato YYYYMMDD
+        try:
+            anno, mese, giorno = int(seq[:4]), int(seq[4:6]), int(seq[6:])
+            if 1900 < anno < datetime.now().year and 1 <= mese <= 12 and 1 <= giorno <= 31:
+                return f"{giorno:02d}/{mese:02d}/{anno}"
+        except ValueError:
+            pass
+        # Tenta formato DDMMYYYY
+        try:
+            giorno, mese, anno = int(seq[:2]), int(seq[2:4]), int(seq[4:])
+            if 1900 < anno < datetime.now().year and 1 <= mese <= 12 and 1 <= giorno <= 31:
+                return f"{giorno:02d}/{mese:02d}/{anno}"
+        except ValueError:
+            pass
+    return None
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Scanner Madre Cloud</title>
+    <title>Scanner Madre Intelligente</title>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #121212; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; box-sizing: border-box; }
         .container { max-width: 450px; width: 100%; text-align: center; }
         .video-container { position: relative; width: 100%; max-width: 360px; height: 240px; margin: 0 auto; border-radius: 20px; overflow: hidden; border: 3px solid #333; background: #000; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .mirino { position: absolute; top: 25%; left: 5%; width: 90%; height: 50%; border: 3px dashed rgba(255,255,255,0.7); border-radius: 10px; pointer-events: none; }
+        .mirino { position: absolute; top: 20%; left: 5%; width: 90%; height: 60%; border: 3px dashed rgba(255,255,255,0.7); border-radius: 12px; pointer-events: none; }
         .status-circle { width: 140px; height: 140px; border-radius: 50%; margin: 25px auto; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; font-weight: bold; transition: all 0.4s ease; background-color: #222; border: 4px solid #333; }
         .maggiorenne { background-color: #2eb85c; border-color: #1f7a3e; box-shadow: 0 0 35px #2eb85c; }
         .minorenne { background-color: #e55353; border-color: #a33939; box-shadow: 0 0 35px #e55353; }
@@ -78,8 +105,8 @@ HTML_TEMPLATE = """
 <body>
 
 <div class="container">
-    <h2 style="margin-bottom: 5px; color: #fff;">Scanner Cloud</h2>
-    <p id="sub" style="color: #aaa; margin-top: 0; font-size: 0.95rem;">Avvicina la DATA DI NASCITA dentro il mirino</p>
+    <h2 style="margin-bottom: 5px; color: #fff;">Scanner Totale</h2>
+    <p id="sub" style="color: #aaa; margin-top: 0; font-size: 0.95rem;">Fronte (data di nascita) o Retro (codice a barre)</p>
 
     <div class="video-container">
         <video id="video" autoplay playsinline muted></video>
@@ -87,7 +114,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div id="circle" class="status-circle">📸</div>
-    <div id="info">Inquadra la data...</div>
+    <div id="info">Inquadra il documento...</div>
 </div>
 
 <canvas id="canvas" style="display:none;" width="800" height="600"></canvas>
@@ -134,7 +161,6 @@ HTML_TEMPLATE = """
     function catturaEInvia() {
         if (bloccato || video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
-        // Cattura ad una risoluzione maggiore per permettere a Tesseract di leggere meglio
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         
@@ -150,17 +176,17 @@ HTML_TEMPLATE = """
                 
                 if (data.esito === 'MAGGIORENNE') {
                     circle.className = 'status-circle maggiorenne'; circle.innerText = '✔️';
-                    info.innerHTML = `<span style="color:#2eb85c">MAGGIORENNE</span><br><span style="font-size:1.1rem">${data.eta} anni (${data.data_rilevata})</span>`;
+                    info.innerHTML = `<span style="color:#2eb85c">MAGGIORENNE</span><br><span style="font-size:1.1rem">${data.eta} anni (${data.data_rilevata})</span><br><span style="font-size:0.8rem; color:#888;">Rilevato tramite: ${data.metodo}</span>`;
                     playSuono('ok');
                 } else {
                     circle.className = 'status-circle minorenne'; circle.innerText = '❌';
-                    info.innerHTML = `<span style="color:#e55353">MINORENNE</span><br><span style="font-size:1.1rem">${data.eta} anni (${data.data_rilevata})</span>`;
+                    info.innerHTML = `<span style="color:#e55353">MINORENNE</span><br><span style="font-size:1.1rem">${data.eta} anni (${data.data_rilevata})</span><br><span style="font-size:0.8rem; color:#888;">Rilevato tramite: ${data.metodo}</span>`;
                     playSuono('no');
                 }
 
                 setTimeout(() => {
                     circle.className = 'status-circle'; circle.innerText = '📸';
-                    info.innerText = 'Inquadra la data...';
+                    info.innerText = 'Inquadra il documento...';
                     bloccato = false;
                 }, 3500);
             }
@@ -169,7 +195,7 @@ HTML_TEMPLATE = """
     }
 
     startCamera();
-    setInterval(catturaEInvia, 1000); // Invia un frame ogni secondo
+    setInterval(catturaEInvia, 900); // Analisi rapida inferiore al secondo
 </script>
 
 </body>
@@ -190,27 +216,40 @@ def scan_frame():
     image_bytes = base64.b64decode(encoded)
     image = Image.open(io.BytesIO(image_bytes))
 
-    # --- PRE-ELABORAZIONE IMMAGINE PER L'OCR ---
-    # Convertiamo in scala di grigi e aumentiamo il contrasto per rendere i numeri nettissimi
-    image = image.convert('L')
-    enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.0)
+    # --- SFORZO 1: LETTURA CODICE A BARRE (RETRO DEI DOCUMENTI) ---
+    try:
+        # zxingcpp analizza direttamente l'immagine PIL in modo velocissimo
+        barcodes = zxingcpp.read_barcodes(image)
+        for barcode in barcodes:
+            testo_barcode = barcode.text
+            if testo_barcode:
+                data_estratta = estrai_data_da_barcode(testo_barcode)
+                if data_estratta:
+                    eta = calcola_eta(data_estratta)
+                    if eta is not None and 1 < eta < 120:
+                        esito = "MAGGIORENNE" if eta >= 18 else "MINORENNE"
+                        salva_in_memoria(esito, eta, data_estratta)
+                        return jsonify({'status': 'success', 'esito': esito, 'eta': eta, 'data_rilevata': data_estratta, 'metodo': 'Codice a Barre'})
+    except Exception as e:
+        print(f"Errore scansione Barcode: {e}")
+
+    # --- SFORZO 2: LETTURA OCR (FRONTE DEI DOCUMENTI) ---
+    image_grigia = image.convert('L')
+    enhancer = ImageEnhance.Contrast(image_grigia)
+    image_elaborata = enhancer.enhance(2.0)
     
     try:
-        # Configurazione Tesseract: gli diciamo di cercare solo cifre e caratteri di data
         custom_config = r'--psm 11 -c tessedit_char_whitelist=0123456789/.-'
-        testo_estratto = pytesseract.image_to_string(image, config=custom_config)
-        
-        # Cerca formati data tipo 15/08/2002 o 15-08-2002 o 15.08.2002
+        testo_estratto = pytesseract.image_to_string(image_elaborata, config=custom_config)
         date_trovate = re.findall(r'\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}', testo_estratto)
 
         if date_trovate:
             for data_str in date_trovate:
                 eta = calcola_eta(data_str)
-                if eta is not None and 1 < eta < 120: # Filtro per evitare date assurde lette male
+                if eta is not None and 1 < eta < 120:
                     esito = "MAGGIORENNE" if eta >= 18 else "MINORENNE"
                     salva_in_memoria(esito, eta, data_str)
-                    return jsonify({'status': 'success', 'esito': esito, 'eta': eta, 'data_rilevata': data_str})
+                    return jsonify({'status': 'success', 'esito': esito, 'eta': eta, 'data_rilevata': data_str, 'metodo': 'OCR Testo'})
     except Exception as e:
         print(f"Errore OCR: {e}")
 
